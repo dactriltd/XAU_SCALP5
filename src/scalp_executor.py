@@ -147,7 +147,11 @@ class ScalpExecutor:
         # S4-HEDGE: chân HEDGE = lệnh đối ứng KHÔNG TP cố định trên sàn (chốt lời do máy rổ
         # strategy quyết: HEDGE_TAKE/PRUNE_BREAK/PRUNE_SPAN/BASKET_TP — sàn không tự đóng)
         is_leg = action.get("leg_type") == "HEDGE"
-        tp = None if is_leg else round(px + side * c.TP_POINTS, 2)
+        # F2 (15/10 HUMAN-approved): TP tính từ GIÁ SÀN HIỆN TẠI (strategy.last_px = tick mới nhất)
+        # chứ KHÔNG phải action px (arm-px cũ) — giá spike → arm-px trễ → TP < ask+stops →
+        # broker reject "Invalid stops" (4 entry thua @01:05/01:14). last_px=None (boot) → fallback px.
+        mkt = getattr(strategy, "last_px", None) or px
+        tp = None if is_leg else round(mkt + side * c.TP_POINTS, 2)
         res = await self.client.create_market_order(
             c.SYMBOL, c.LOT, side,
             stop_loss=None,            # NO-SL (design)
