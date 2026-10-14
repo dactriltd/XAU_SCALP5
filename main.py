@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import signal
+import sqlite3
 import time
 from datetime import datetime, timezone
 
@@ -290,6 +291,12 @@ async def run() -> None:
             log.info("[STATE] snapshot saved (pre-StreamStalled)")
         except Exception as e:
             log.warning(f"[STATE] save (pre-StreamStalled) fail: {e}")
+        # FIX WCH/H6: Đóng sạch WS (london:0/1) và RPC của chu kỳ hiện tại trước khi retry
+        try:
+            await client.shutdown()
+            log.info("[STREAM] client.shutdown() hoàn tất trước khi retry StreamStalled")
+        except Exception as e:
+            log.warning(f"[STREAM] client.shutdown (pre-StreamStalled) fail: {e}")
         raise StreamStalled()
     log.info("[STREAM] stream_connection READY → pipeline check")
     await client.pipeline_check([C.SYMBOL])  # "đường ống thông?" (fail-open: warn only, không chặn boot)
@@ -316,9 +323,11 @@ async def run() -> None:
     except Exception as e:
         log.warning(f"[V2] init_m0_tables fail (regime_log sẽ không ghi): {type(e).__name__}: {e}")
     try:
-        async with aiosqlite.connect(DB_PATH) as db:
-            _lvl.rebuild_from_candles(db._conn, C.SYMBOL)
-            await db.commit()
+        # FIX LVL-THREADING: conn sqlite3 ĐỒNG BỘ riêng (WAL → không xung đột pool aiosqlite)
+        # (conn của worker-thread aiosqlite dùng cross-thread → ProgrammingError "created in a thread")
+        with sqlite3.connect(DB_PATH) as sync_conn:
+            _lvl.rebuild_from_candles(sync_conn, C.SYMBOL)
+            sync_conn.commit()
         log.info(f"[V2] LVL engine rebuilt: {len(_lvl._engine.zones) if _lvl._engine else 0} zones m1")
     except Exception as e:
         log.warning(f"[V2] LVL rebuild fail (G2/R1R2 tạm disable, tự hồi khi on_m1_close): {type(e).__name__}: {e}")
@@ -360,7 +369,10 @@ async def run() -> None:
     if _state_loaded:
         log.info("[STATE] WARMUP skip — ladder/fz/arm/touches restore từ snapshot (positions unchanged)")
     elif C.LADDER_TF == "M1":
-        m1 = await client.fetch_candles(C.SYMBOL, Timeframe.M1, limit=C.S1_SWINGS)
+        # H4 (DB-first warmup): lấy nến từ DB trước, chỉ gọi RPC khi DB thiếu dữ liệu
+        m1 = await storage.get_candles(C.SYMBOL, Timeframe.M1, C.S1_SWINGS)
+        if not m1 or len(m1) < 30:
+            m1 = await client.fetch_candles(C.SYMBOL, Timeframe.M1, limit=C.S1_SWINGS)
         m1_today = [(int(c.timestamp.timestamp()), c.open, c.high, c.low, c.close)
                     for c in m1 if today_start <= int(c.timestamp.timestamp()) < m1_closed_cut]
         n_seed = strategy.seed_m1_bars(m1_today)
@@ -397,9 +409,10 @@ async def run() -> None:
         R1/R2 arm scan (M0-gated; FILL tick-level trong strategy.decide)."""
         # 1) LVL engine (global): nến vừa khép → advance + UPSERT bảng lvl (best-effort)
         try:
-            async with aiosqlite.connect(DB_PATH) as db:
-                _lvl.on_m1_close(db._conn, cts, (o, h, l, cpx))
-                await db.commit()
+            # FIX LVL-THREADING: conn sqlite3 đồng bộ (best-effort, mỗi nến M1 khép)
+            with sqlite3.connect(DB_PATH) as sync_conn:
+                _lvl.on_m1_close(sync_conn, cts, (o, h, l, cpx))
+                sync_conn.commit()
         except Exception as e:
             log.warning(f"[LVL] on_m1_close fail (engine in-memory tiếp tục): {type(e).__name__}: {e}")
         # 2) M0 regime (tag m1-proxy) + regime_log khi tag đổi
