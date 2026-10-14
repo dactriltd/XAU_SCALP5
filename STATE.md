@@ -1,6 +1,6 @@
 # Loop State — XAU_SCALP5
 
-Last run: 2026-10-15 00:1x+07 (S4-HEDGE L2 worktree: G1/G2 PASS · G3 FAIL 0/3 → HEDGE_ENABLE=False · chờ G4 + P1/P2/P3)
+Last run: 2026-10-15 01:0x+07 (S4-HEDGE P2-Tuned LIVE: HEDGE_ENABLE=True (HUMAN D2-override) · ff-merge main @ c5caf41 · bot mới PID 23974)
 
 ## L2 APPROVAL S4-HEDGE (ghi theo AGENTS.md TRƯỚC khi edit source — 15/10 00:0x+07)
 - **Cơ chế cô lập (D4)**: worktree `s4-hedge` tại `../XAU_SCALP5-s4-hedge` (HEAD = base `16cfd1b`). Bot live PID 7710 (boot 22:53+07) CHẠY NGUYÊN GẠC trong thư mục gốc — KHÔNG kill/restart/ghi đè runtime (`logs/scalp5.pid`, `logs/scalp5.status.json`, `data/scalp5.db`, `data/state_snapshot.json`) trong suốt implementation.
