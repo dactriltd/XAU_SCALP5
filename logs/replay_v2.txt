@@ -1,0 +1,65 @@
+════════════════════════════════════════════════════════════════
+S3-B · V2 GATE REPLAY (§14.3) · m1-proxy · DB READ-ONLY · 12 ngày 02/10→14/10 + v0-gate 13/10→14/10
+════════════════════════════════════════════════════════════════
+TF=1m · 11637 nến m1 (10/01 23:45→10/14 10:18) · zones engine=22 · v0 entries=109 · v0 exits dedup=73 · PSL-cap=−6.48$ · spread 0.48$
+
+── (1) G2-A (LVL+EXT15) trên v0 entries — cf leg (exit_log ACTUAL basis, parity E6) ──
+  CHẶN 63/109 lệnh (LVL 56 · EXT15 7) · PnL loại -12.11$ (trốn lỗ -81.67 / phí win +69.55)
+  v0 THỰC (dedup exit_log): +21.89$ · CF LIVE(px-now) = +34.01$  [E6-ref +22.26 (lookahead, live không tính được — root-cause _diag_g2.py) · A: cf-LIVE ≥ 95% E6-ref → PASS]
+  Top-10 lệnh v0 bị chặn (|PnL| lớn nhất):
+    10/14 07:05  v0 S @4157.0 · LVL · PnL-loại -12.01$ · regime=RANGE
+    10/14 10:09  v0 S @4163.0 · LVL · PnL-loại -11.41$ · regime=CREEP
+    10/14 07:37  v0 B @4159.6 · LVL · PnL-loại -9.76$ · regime=RANGE
+    10/14 01:38  v0 S @4159.0 · LVL · PnL-loại -8.90$ · regime=RANGE
+    10/14 07:36  v0 B @4159.9 · LVL · PnL-loại -6.71$ · regime=RANGE
+    10/14 09:12  v0 B @4163.4 · LVL · PnL-loại -5.91$ · regime=IMPULSE
+    10/14 07:31  v0 B @4160.7 · LVL · PnL-loại -5.56$ · regime=RANGE
+    10/14 09:08  v0 B @4158.7 · LVL · PnL-loại +4.32$ · regime=RANGE
+    10/14 07:34  v0 B @4157.6 · LVL · PnL-loại +4.14$ · regime=CREEP
+    10/14 01:43  v0 S @4161.5 · EXT15 · PnL-loại -4.01$ · regime=CREEP
+
+── (2) R1/R2 M0-GATE (block trong IMPULSE) · exit 4-lớp · K=4 vs K=∞ ──
+  K=4 (live cap): 928 lệnh · PnL +302.32$ · WR 613/928 (66%)
+  K=∞:           928 lệnh · PnL +297.01$ · WR 613/928 (66%) · K_eff factor = PnL(K4)/PnL(K∞) = 1.018
+  Exit mix (K=4): DRIFT×216 · EOD×3 · PSL×97 · TP×612
+  WR theo regime (K=4):
+    IMPULSE    65 lệnh ·   +58.81$ · WR 47/65
+    V-REV      17 lệnh ·   +15.83$ · WR 13/17
+    RANGE     430 lệnh ·    +5.19$ · WR 262/430
+    CREEP     416 lệnh ·  +222.50$ · WR 291/416
+  Per-session (K=4):
+    10/02: 119 lệnh ·   +46.32$ · WR 82/119
+    10/03:   0 lệnh ·    +0.00$ · WR 0/0 (weekend, 0 nến)
+    10/04:   0 lệnh ·    +0.00$ · WR 0/0 (weekend, 0 nến)
+    10/05: 110 lệnh ·   +49.00$ · WR 72/110
+    10/06: 114 lệnh ·   +37.27$ · WR 74/114
+    10/07:  90 lệnh ·   +60.14$ · WR 63/90
+    10/08: 130 lệnh ·    -0.50$ · WR 85/130
+    10/09: 110 lệnh ·   +15.73$ · WR 69/110
+    10/10:   0 lệnh ·    +0.00$ · WR 0/0
+    10/11:   0 lệnh ·    +0.00$ · WR 0/0
+    10/12:  99 lệnh ·   -11.99$ · WR 57/99
+    10/13: 126 lệnh ·   +86.15$ · WR 90/126
+    10/14:  30 lệnh ·   +20.20$ · WR 21/30
+
+── (3) v0 KHÔNG-BỊ-CHẶN → V1-ladder (model basis — ladder S1 không đổi) ──
+  46 lệnh · PnL -16.53$ · worst -6.48$ (4866041581 10/13 17:47 S@4180.2 → PSL)
+  worst tổng V2 (v0-unb + R1R2 K4): -6.48$  [≥ −6.48 PSL-cap → PASS]
+
+── VERDICT GATE §14.3 (operator 14/10: A∧B∧C · D-literal = tham chiếu) ──
+  V2-total (model: v0-unb V1-ladder + R1R2 M0-gated K=4) = +285.79$
+  D-literal threshold = +22.26 + +302.32 = +324.58$ → FAIL (tham chiếu: literal trộn basis cf-actual/model)
+ _checks: A(cf-LIVE px-now ≥ 95% E6-ref) ✓ · B(worst ≥ −6.48 PSL-cap, inclusive) ✓ · C(R1R2 K4 ≥ 0) ✓ · D(literal §14.3, tham chiếu) ✗
+  VERDICT: PASS
+
+ASSUMPTIONS / CHÊNH (detail trong report S3-B):
+ - M0 hysteresis 120 tick ≈ 2 nến m1 · V-REV tag ngay (sự kiện 1 nến, hysteresis làm nó không fire).
+ - M0 state reset mỗi session (E6 parity; E6 không có M0).
+ - RANGE M0: 'FZ touches ≥ 2' proxy = số zone strong (touches ≥ FZ_MIN_TOUCH) ≥ 2.
+ - DRIFT-FLIP close-based (drift5m tại m1-close), 2 m1-close adverse liên tiếp khi PnL<0.
+ - K cap = R1/R2 đồng thời; live thật K_CONTEXT chung với v0 (tương tác chưa đo — rev-sau).
+ - A (cf): E6 +22.26$ = lookahead semantics (px-final/touch-px-final + EXT15 wick) — live không tính được.
+   LIVE = px-now (src/lvl): cf-LIVE +34.01$ ≥ 95% E6-ref ✓ · root-cause diff 6 entry: _diag_g2.py.
+ - §14.3 literal trộn 2 basis (cf-actual vs model) → D = tham chiếu; VERDICT = A∧B∧C (operator 14/10, STATE.md).
+ - G2 as-of: engine feed nến chứa entry (E6 convention chạm/động nến k tại open ts_k) · EXT15 window
+   15 nến gồm nến chứa (parity _replay_lvl) · prune zone dead/age = replay-local (không đổi kết quả).

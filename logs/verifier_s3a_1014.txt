@@ -1,0 +1,43 @@
+[0m
+> verifier · agnes-3.0-flash
+Tôi sẽ review theo 7 checks trong brief. Đầu tiên đọc các artifact: `src/lvl.py`, `src/config.py`, `_smoke_lvl.py`, ground truth `_replay_lvl.py` L75-127, DDL §2.2, và smoke log.
+[0m→ [0mRead _replay_lvl.py 
+[0m→ [0mRead src/lvl.py 
+> verifier · agnes-3.0-flash
+Tôi đã đọc `lvl.py` và ground truth E6. Tiếp theo đọc config.py (đầu + cuối), smoke script, DDL §2.2, và smoke log.
+[0m→ [0mRead logs/lvl_smoke.txt 
+[0m→ [0mRead _smoke_lvl.py 
+[0m→ [0mRead src/config.py 
+> verifier · agnes-3.0-flash
+[0m✱ [0mGrep "§2\.2|2\.2|idx_lvl_alive" [90min docs/DASHBOARD_DATA_SPEC.md · 2 matches[0m
+> verifier · agnes-3.0-flash
+[0m→ [0mRead docs/DASHBOARD_DATA_SPEC.md [90m[limit=40, offset=60][0m
+> verifier · agnes-3.0-flash
+Tôi đã có đủ bằng chứng cho 6/7 checks. Check 7 yêu cầu chạy compile + smoke. Thử py_compile (thực thi code, khác với viết file) để lấy evidence độc lập.
+[93m[1m! [0mpermission requested: shell (.venv/bin/python -m py_compile src/lvl.py src/config.py _smoke_lvl.py, echo "PYCOMPILE_OK", .venv/bin/python _smoke_lvl.py); auto-rejecting
+[0m✗ [0mcd /Users/admin/Desktop/DESIGN/XAU_SCALP5 && .venv/bin/python -m py_compile src/lvl.py src/config.py _smoke_lvl.py && echo "PYCOMPILE_OK" && .venv/bin/python _smoke_lvl.py failed
+[91m[1mError: [0mThis non-interactive run cannot ask the user for permission, so the request was rejected. Continue without this action.
+> verifier · agnes-3.0-flash
+Bash bị chặn (permission ask) → theo brief, dùng evidence sẵn trong `logs/lvl_smoke.txt`.
+[0m→ [0mRead STATE.md 
+> verifier · agnes-3.0-flash
+**APPROVE**
+
+## Bảng evidence (7/7 checks)
+
+| # | Check | Kết quả | Bằng chứng (line cụ thể) |
+|---|-------|---------|--------------------------|
+| 1 | Semantic parity E6 | ✓ | pivot: `src/lvl.py` L103-108 (nến `i = bars[-3]` confirm khi nến `i+2` hiện tại đóng · 4 nến kề = `bars[-5,-4,-2,-1]` · `t_conf = ts+60`) = E6 `_replay_lvl.py` L74-79 ✓ · merge: L110-128 (cùng kind · `abs(Δpx) ≤ ZONE_PTS` · `Δt ≤ ZONE_SPAN*60` · px max/min L115 · `t_conf = min` L117) = E6 L83-95 ✓ · touches: L94-99 (từ `t_conf` L95 · band H `h ≥ P−LVL_BAND` / L `l ≤ P+LVL_BAND` L96 = E6 L107 · sep ≥ 6′ L97) ✓ · **DEAD H-only: L91 `z["kind"] == "H" and c <= z["px"] - LVL_DEAD`** = E6 L105 `k == "H" and m1[j][4] <= P - FADE_PTS` ✓ (wick-exempt: chỉ dùng `c` = close) · L-zone age-cap: `_zones_at` L203 `now - t_conf > LVL_AGE_MIN*60` = E6 L116 ✓. NOTE trong brief: `z["strong"]` (L100, cumulative) thay bisect-as-of-t — tương đương khi replay S3-B advance engine theo thời điểm t (feed nến tới t rồi query, không query-toàn-rồi-filter). |
+| 2 | g2_blocked band | ✓ | `src/lvl.py` L215-222: S → `0 <= z["px"] - px <= G2LVL_PTS` (L218, px DƯỚI zone H) · B → `0 <= px - z["px"] <= G2LVL_PTS` (L220, mirror, px TRÊN zone L) = E6 L144-147 ✓. Smoke L2: `px=4166.43(=zone−1.0) → True ✓` · L3: `px=4164.93(=zone−2.5 >2.0) → False` ✓ |
+| 3 | DDL == §2.2 | ✓ | `src/lvl.py` L48-60 vs `DASHBOARD_DATA_SPEC.md` L74-85: 13 cột giống nhau (zone_key, symbol, tf, px, kind, t_pivot, t_conf, touches, t_last_touch, strong, alive, dead_ts, updated_at) · `CHECK(kind IN ('H','L'))` · `PK(symbol, tf, zone_key)` · index `idx_lvl_alive(symbol, tf, alive, px DESC)` L60 ✓. Diff: `IF NOT EXISTS` (safe) + `tf DEFAULT 'm1'` (khớp spec L76) — không đổi semantics |
+| 4 | Read-only safety | ✓ | `rebuild_from_candles` L157-172: chỉ `SELECT ... LIMIT` L164-167 · DDL `IF NOT EXISTS` L48/L60 (chạy trong `_persist` L135-136) · `except sqlite3.OperationalError → self._readonly = True; return` L139-141, L148-149. Bằng chứng runtime: smoke L1 `persist=skip(readonly)` (DB mở `file:...?mode=ro`, `_smoke_lvl.py` L18) ✓ |
+| 5 | config.py append-only | ✓ | `src/config.py` L111-129 = đúng 16 hằng mới (9 LVL: LVL_TOUCH/LVL_BAND/ZONE_PTS/ZONE_SPAN/STALL_M1/FADE_PTS/LVL_DEAD/LIMIT_TTL/G2LVL_PTS L112-120 · 7 M0: M0_SPEED_IMP/SPEED_RANGE/FORM/EXT_AGE/HYST_TICKS/GDIR_TOL_VREV/REV_PTS_VREV L123-129, giá trị khớp brief) · mọi block có sẵn (MOM L64-92 · FZ L93-102 · WINDOWS L104-108 · S-ladder L38-45 · EXIT L47-56) giữ nguyên vị trí L7-109, file kết thúc L129 (append, không chèn giữa file) ✓ |
+| 6 | extreme15 | ✓ | `src/lvl.py` L225-235: cửa sổ `list(bars)[-15:]` (15 nến m1 đã đóng — deque chỉ chứa nến đã đóng) · trả `(high, ts_high, low, ts_low)` (superset E6: kèm ts, OK) = E6 `extremes_at` L122-127 (window 15 nến đóng) ✓. Smoke L4: `high=4169.737@1791947880 · low=4161.550@1791947340` ✓ |
+| 7 | Compile + smoke | ✓ (evidence sẵn) | Bash bị chặn (`permission.rejected`) → dùng `logs/lvl_smoke.txt` (5 dòng, đúng brief): L1 `zones=87 · strong=80 · dead=41 (H-only · dead_L=0 ✓) · persist=skip(readonly)` · L2 `g2_blocked=True ✓` · L3 `False` · L4 extreme15 · L5 `B-strong-alive=13 · H-strong-alive=0` ✓ |
+
+## Ghi chú (không block)
+- **L91 H-only branch + STATE.md L16/L23**: khớp owner decision 14/10 (parity E6 L105 đã gate) — L-zone không dead, chỉ age-cap 240′ ✓
+- **S3-B cảnh báo (brief NOTE)**: khi viết `_replay_v2.py`, PHẢI advance engine (feed nến) đến thời điểm `t` rồi mới query `strong_zones/g2_blocked` — không được query-toàn-rồi-filter, vì `z["strong"]` trong `lvl.py` là counter cumulative (L100) thay vì bisect-as-of-t như E6 L118
+- **Kiểm tra độc lập py_compile + chạy smoke trực tiếp: KHÔNG THỰC HIỆN ĐƯỢC** (bash permission denied trong run này) — dựa trên evidence persisted `logs/lvl_smoke.txt` + STATE.md L23 ("py_compile OK · C-A 16:24–16:27 · smoke xanh")
+
+→ **APPROVE** — S3-A (`src/lvl.py` + config append 16 hằng + `_smoke_lvl.py`) đạt semantic parity E6 + owner H-only decision, DDL khớp §2.2, read-only safe, smoke xanh.

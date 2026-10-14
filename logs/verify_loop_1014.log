@@ -1,0 +1,542 @@
+[VERIFY5] Starting 5-min loop (Ctrl+C to stop) → /Users/admin/Desktop/DESIGN/XAU_SCALP5/logs/scalp5_verify_report.json
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 12:17:53Z · OVERALL: FAIL (F=2 W=1)
+==============================================================
+  ❌ [1_TICK_STREAM] age=32315s (ts=1791947958, px=4168.38)
+       1. Why tick age=32315s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=538m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ❌ [5_SUPERVISOR] pid=DEAD () stalled=0 backoff=N/A
+       1. Why PID dead? → main.py crash / OOM / SIGTERM không captured  2. Why crash? → unhandled exception trong run() (không wrap trong main() supervisor)
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 12:22:55Z · OVERALL: FAIL (F=2 W=1)
+==============================================================
+  ❌ [1_TICK_STREAM] age=32617s (ts=1791947958, px=4168.38)
+       1. Why tick age=32617s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=543m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ❌ [5_SUPERVISOR] pid=DEAD () stalled=0 backoff=N/A
+       1. Why PID dead? → main.py crash / OOM / SIGTERM không captured  2. Why crash? → unhandled exception trong run() (không wrap trong main() supervisor)
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 12:27:57Z · OVERALL: FAIL (F=2 W=1)
+==============================================================
+  ❌ [1_TICK_STREAM] age=32919s (ts=1791947958, px=4168.38)
+       1. Why tick age=32919s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=548m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ❌ [5_SUPERVISOR] pid=DEAD () stalled=0 backoff=N/A
+       1. Why PID dead? → main.py crash / OOM / SIGTERM không captured  2. Why crash? → unhandled exception trong run() (không wrap trong main() supervisor)
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 12:32:59Z · OVERALL: FAIL (F=1 W=1)
+==============================================================
+  ❌ [1_TICK_STREAM] age=33221s (ts=1791947958, px=4168.38)
+       1. Why tick age=33221s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=553m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ✅ [5_SUPERVISOR] pid=ALIVE (81773) stalled=0 backoff=N/A
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 12:38:02Z · OVERALL: FAIL (F=1 W=1)
+==============================================================
+  ❌ [1_TICK_STREAM] age=33524s (ts=1791947958, px=4168.38)
+       1. Why tick age=33524s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=558m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ✅ [5_SUPERVISOR] pid=ALIVE (81773) stalled=0 backoff=N/A
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 12:43:04Z · OVERALL: FAIL (F=1 W=1)
+==============================================================
+  ❌ [1_TICK_STREAM] age=33826s (ts=1791947958, px=4168.38)
+       1. Why tick age=33826s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=563m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ✅ [5_SUPERVISOR] pid=ALIVE (81773) stalled=0 backoff=N/A
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 12:48:06Z · OVERALL: FAIL (F=1 W=1)
+==============================================================
+  ❌ [1_TICK_STREAM] age=34128s (ts=1791947958, px=4168.38)
+       1. Why tick age=34128s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=568m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ✅ [5_SUPERVISOR] pid=ALIVE (81773) stalled=0 backoff=N/A
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 12:53:09Z · OVERALL: FAIL (F=1 W=1)
+==============================================================
+  ❌ [1_TICK_STREAM] age=34431s (ts=1791947958, px=4168.38)
+       1. Why tick age=34431s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=573m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ✅ [5_SUPERVISOR] pid=ALIVE (81773) stalled=0 backoff=N/A
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 12:58:11Z · OVERALL: FAIL (F=1 W=1)
+==============================================================
+  ❌ [1_TICK_STREAM] age=34733s (ts=1791947958, px=4168.38)
+       1. Why tick age=34733s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=578m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ✅ [5_SUPERVISOR] pid=ALIVE (81773) stalled=0 backoff=N/A
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 13:03:13Z · OVERALL: FAIL (F=1 W=1)
+==============================================================
+  ❌ [1_TICK_STREAM] age=35035s (ts=1791947958, px=4168.38)
+       1. Why tick age=35035s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=583m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ✅ [5_SUPERVISOR] pid=ALIVE (81773) stalled=0 backoff=N/A
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 13:08:15Z · OVERALL: FAIL (F=1 W=1)
+==============================================================
+  ❌ [1_TICK_STREAM] age=35337s (ts=1791947958, px=4168.38)
+       1. Why tick age=35337s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=588m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ✅ [5_SUPERVISOR] pid=ALIVE (81773) stalled=0 backoff=N/A
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 13:13:17Z · OVERALL: FAIL (F=2 W=1)
+==============================================================
+  ❌ [1_TICK_STREAM] age=35639s (ts=1791947958, px=4168.38)
+       1. Why tick age=35639s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=593m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ❌ [5_SUPERVISOR] pid=ALIVE (81773) stalled=3 backoff=N/A
+       1. Why PID dead? → main.py crash / OOM / SIGTERM không captured  2. Why crash? → unhandled exception trong run() (không wrap trong main() supervisor)
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 13:18:19Z · OVERALL: FAIL (F=2 W=1)
+==============================================================
+  ❌ [1_TICK_STREAM] age=35941s (ts=1791947958, px=4168.38)
+       1. Why tick age=35941s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=598m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ❌ [5_SUPERVISOR] pid=ALIVE (81773) stalled=3 backoff=N/A
+       1. Why PID dead? → main.py crash / OOM / SIGTERM không captured  2. Why crash? → unhandled exception trong run() (không wrap trong main() supervisor)
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 13:23:22Z · OVERALL: FAIL (F=2 W=1)
+==============================================================
+  ❌ [1_TICK_STREAM] age=36244s (ts=1791947958, px=4168.38)
+       1. Why tick age=36244s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=603m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ❌ [5_SUPERVISOR] pid=ALIVE (81773) stalled=3 backoff=N/A
+       1. Why PID dead? → main.py crash / OOM / SIGTERM không captured  2. Why crash? → unhandled exception trong run() (không wrap trong main() supervisor)
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 13:28:23Z · OVERALL: FAIL (F=1 W=2)
+==============================================================
+  ❌ [1_TICK_STREAM] age=36545s (ts=1791947958, px=4168.38)
+       1. Why tick age=36545s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=608m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ⚠️ [5_SUPERVISOR] pid=ALIVE (81773) stalled=2 backoff=N/A
+       1. Why PID dead? → main.py crash / OOM / SIGTERM không captured  2. Why crash? → unhandled exception trong run() (không wrap trong main() supervisor)
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 13:33:24Z · OVERALL: FAIL (F=1 W=1)
+==============================================================
+  ❌ [1_TICK_STREAM] age=36846s (ts=1791947958, px=4168.38)
+       1. Why tick age=36846s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=613m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ✅ [5_SUPERVISOR] pid=ALIVE (81773) stalled=0 backoff=N/A
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 13:38:26Z · OVERALL: FAIL (F=1 W=1)
+==============================================================
+  ❌ [1_TICK_STREAM] age=37148s (ts=1791947958, px=4168.38)
+       1. Why tick age=37148s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=618m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ✅ [5_SUPERVISOR] pid=ALIVE (81773) stalled=0 backoff=N/A
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 13:43:27Z · OVERALL: FAIL (F=1 W=1)
+==============================================================
+  ❌ [1_TICK_STREAM] age=37449s (ts=1791947958, px=4168.38)
+       1. Why tick age=37449s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=623m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ✅ [5_SUPERVISOR] pid=ALIVE (81773) stalled=0 backoff=N/A
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 13:48:29Z · OVERALL: FAIL (F=1 W=1)
+==============================================================
+  ❌ [1_TICK_STREAM] age=37751s (ts=1791947958, px=4168.38)
+       1. Why tick age=37751s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=628m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ✅ [5_SUPERVISOR] pid=ALIVE (81773) stalled=0 backoff=N/A
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 13:53:31Z · OVERALL: FAIL (F=2 W=1)
+==============================================================
+  ❌ [1_TICK_STREAM] age=38053s (ts=1791947958, px=4168.38)
+       1. Why tick age=38053s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=634m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ❌ [5_SUPERVISOR] pid=ALIVE (81773) stalled=3 backoff=N/A
+       1. Why PID dead? → main.py crash / OOM / SIGTERM không captured  2. Why crash? → unhandled exception trong run() (không wrap trong main() supervisor)
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 13:58:32Z · OVERALL: FAIL (F=2 W=1)
+==============================================================
+  ❌ [1_TICK_STREAM] age=38354s (ts=1791947958, px=4168.38)
+       1. Why tick age=38354s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=639m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ❌ [5_SUPERVISOR] pid=ALIVE (81773) stalled=3 backoff=N/A
+       1. Why PID dead? → main.py crash / OOM / SIGTERM không captured  2. Why crash? → unhandled exception trong run() (không wrap trong main() supervisor)
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 14:03:33Z · OVERALL: FAIL (F=2 W=1)
+==============================================================
+  ❌ [1_TICK_STREAM] age=38655s (ts=1791947958, px=4168.38)
+       1. Why tick age=38655s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=644m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ❌ [5_SUPERVISOR] pid=ALIVE (81773) stalled=3 backoff=N/A
+       1. Why PID dead? → main.py crash / OOM / SIGTERM không captured  2. Why crash? → unhandled exception trong run() (không wrap trong main() supervisor)
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 14:08:35Z · OVERALL: FAIL (F=1 W=2)
+==============================================================
+  ❌ [1_TICK_STREAM] age=38957s (ts=1791947958, px=4168.38)
+       1. Why tick age=38957s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=649m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ⚠️ [5_SUPERVISOR] pid=ALIVE (81773) stalled=2 backoff=N/A
+       1. Why PID dead? → main.py crash / OOM / SIGTERM không captured  2. Why crash? → unhandled exception trong run() (không wrap trong main() supervisor)
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 14:13:37Z · OVERALL: FAIL (F=1 W=1)
+==============================================================
+  ❌ [1_TICK_STREAM] age=39259s (ts=1791947958, px=4168.38)
+       1. Why tick age=39259s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=654m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ✅ [5_SUPERVISOR] pid=ALIVE (81773) stalled=0 backoff=N/A
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 14:18:38Z · OVERALL: FAIL (F=2 W=1)
+==============================================================
+  ❌ [1_TICK_STREAM] age=39560s (ts=1791947958, px=4168.38)
+       1. Why tick age=39560s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=659m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ❌ [5_SUPERVISOR] pid=DEAD (81773) stalled=0 backoff=N/A
+       1. Why PID dead? → main.py crash / OOM / SIGTERM không captured  2. Why crash? → unhandled exception trong run() (không wrap trong main() supervisor)
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 14:23:39Z · OVERALL: FAIL (F=1 W=1)
+==============================================================
+  ❌ [1_TICK_STREAM] age=39861s (ts=1791947958, px=4168.38)
+       1. Why tick age=39861s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=664m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ✅ [5_SUPERVISOR] pid=ALIVE (86441) stalled=0 backoff=N/A
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 14:28:41Z · OVERALL: FAIL (F=1 W=1)
+==============================================================
+  ❌ [1_TICK_STREAM] age=40163s (ts=1791947958, px=4168.38)
+       1. Why tick age=40163s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=669m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ✅ [5_SUPERVISOR] pid=ALIVE (86441) stalled=0 backoff=N/A
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 14:33:43Z · OVERALL: FAIL (F=1 W=1)
+==============================================================
+  ❌ [1_TICK_STREAM] age=40465s (ts=1791947958, px=4168.38)
+       1. Why tick age=40465s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=674m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ✅ [5_SUPERVISOR] pid=ALIVE (86441) stalled=0 backoff=N/A
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 14:38:45Z · OVERALL: FAIL (F=1 W=1)
+==============================================================
+  ❌ [1_TICK_STREAM] age=40767s (ts=1791947958, px=4168.38)
+       1. Why tick age=40767s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=679m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ✅ [5_SUPERVISOR] pid=ALIVE (87166) stalled=0 backoff=N/A
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 14:43:47Z · OVERALL: FAIL (F=1 W=1)
+==============================================================
+  ❌ [1_TICK_STREAM] age=41069s (ts=1791947958, px=4168.38)
+       1. Why tick age=41069s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=684m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ✅ [5_SUPERVISOR] pid=ALIVE (87166) stalled=0 backoff=N/A
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 14:48:49Z · OVERALL: FAIL (F=1 W=1)
+==============================================================
+  ❌ [1_TICK_STREAM] age=41371s (ts=1791947958, px=4168.38)
+       1. Why tick age=41371s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=689m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ✅ [5_SUPERVISOR] pid=ALIVE (87166) stalled=0 backoff=N/A
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 14:53:50Z · OVERALL: FAIL (F=1 W=1)
+==============================================================
+  ❌ [1_TICK_STREAM] age=41672s (ts=1791947958, px=4168.38)
+       1. Why tick age=41672s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=694m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ✅ [5_SUPERVISOR] pid=ALIVE (87166) stalled=0 backoff=N/A
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+
+==============================================================
+  SCALP5 VERIFY · 2026-10-14 14:58:51Z · OVERALL: FAIL (F=1 W=1)
+==============================================================
+  ❌ [1_TICK_STREAM] age=41973s (ts=1791947958, px=4168.38)
+       1. Why tick age=41973s? → WebSocket không delivery / collector không callback  2. Why collector stopped? → stream_connection dead (MetaAPI WS silent)
+  ✅ [2_STRATEGY_STATE] drift5m=+0.59 mode=None L=4 H=0
+  ✅ [3_POSITIONS] open=4 day_loss=+11.18 halted=False
+  ⚠️ [4_TELEMETRY] today: entries=85 exits=58 pnl=+17.81$ last_update=699m trước
+       1. Why no entries? → strategy gate (window, K, halted) chặn entry  2. Why gate blocking? → ngoài WINDOWS / K full / halted=True
+  ✅ [5_SUPERVISOR] pid=ALIVE (87166) stalled=0 backoff=N/A
+  ✅ [6_ENTRY_QUALITY] entries=85 · closed_db=58 (+27 TP-broker est) · win_rate=67% · TP=67% TIME=33% · against-drift=31% · streak_loss=1 · pnl_db=+17.81$
+  ✅ [7_STRUCTURE_RESISTANCE] px=4168.38 · strong_L=0 strong_H=0 · nearest_res=N/A nearest_sup=N/A · box=N/A density_5pts=2 · in_zone=False
+  Report: scalp5_verify_report.json
+==============================================================
+
+[VERIFY5] Stopped.
