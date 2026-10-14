@@ -127,3 +127,16 @@ M0_EXT_AGE: Final[float] = 5           # extreme age tối đa (nến)
 M0_HYST_TICKS: Final[int] = 120        # hysteresis đổi tag (tick-phút)
 M0_GDIR_TOL_VREV: Final[float] = 0.5   # ngưỡng G-DIR tại V-REV
 M0_REV_PTS_VREV: Final[float] = 0.75   # pts ngưỡng xác nhận REVERSE (V-REV)
+
+# --- S4-HEDGE & UNIFIED CAMPAIGN ORCHESTRATOR (14/10) ---
+HEDGE_ENABLE: Final[bool] = False              # D2: False lúc code -> flip True sau khi PASS _replay_hedge.py
+HEDGE_LOCK_PTS: Final[float] = 1.2             # Âm 1.2 pts (~-$2.40) -> mở lệnh đối ứng khóa lỗ (-$3.36 cả spread)
+HEDGE_MIN_PROFIT_PTS: Final[float] = 1.5       # Chân Hedge phải lãi >= 1.5 pts tại cản mới xét gỡ khóa
+HEDGE_BREAK_PTS: Final[float] = 1.0            # Giá vượt vùng cản >= 1.0 pt -> xác nhận PHÁ CẢN (PRUNE_BREAK)
+HEDGE_BOUNCE_CONFIRM_PTS: Final[float] = 0.4   # Giá chạm cản và giật lùi >= 0.4 pt -> xác nhận cản giữ được (HEDGE_TAKE)
+HEDGE_MAX_SPAN_PTS: Final[float] = 4.5         # Khoảng cách tối đa từ lệnh gốc nếu không tìm thấy cản (PRUNE_SPAN)
+BASKET_TP_USD: Final[float] = 0.50             # Chốt lời toàn rổ khi (Floating PnL + Hedge Credit) >= +$0.50
+HEDGE_ALLOW_SCALE_IN: Final[bool] = False      # Tắt nhồi lệnh mặc định để bảo toàn vốn tối đa
+MIN_ROOT_STEP_PTS: Final[float] = 1.0          # Khoảng cách tối thiểu giữa 2 lệnh gốc (chống bắn chùm trùng giá)
+MIN_ROOT_GAP_SEC: Final[int] = 20             # Giãn cách tối thiểu 20 giây giữa 2 lệnh gốc
+MAX_ROOT_POSITIONS: Final[int] = 2            # Tối đa 2 lệnh gốc; dành 2 slot trong K_CONTEXT=4 cho lệnh HEDGE

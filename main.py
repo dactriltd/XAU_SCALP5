@@ -120,6 +120,20 @@ async def exit_action(a: dict, now: int, executor, tg, writer=tlog) -> None:
     pnl, ok = await executor.exit(a["pos_id"], a["px"], a["reason"])
     if ok:
         await writer("exit_log", (now, a["pos_id"], a["reason"], a["px"], pnl))
+        # ── S4-HEDGE (15/10): sync hedge_credit THẬT từ broker + log phân nhánh D3 ──
+        if a["reason"] == "HEDGE_TAKE":
+            rid = str(a.get("parent_id") or "")
+            root = next((p for p in executor.positions if p["id"] == rid), None)
+            if root is not None:
+                # pnl = lãi THỰC TẾ broker trả cho chân HEDGE (thay giá trị ước tính pts×2 của strategy)
+                root["hedge_credit"] = float(pnl)
+                log.info(f"[HEDGE] HEDGE_TAKE leg={a['pos_id']} pnl={pnl:+.2f}$ → root {rid} hedge_credit={root['hedge_credit']:+.2f}$ (BASKET_TP kế tiếp dùng giá trị này)")
+            else:
+                log.warning(f"[HEDGE] HEDGE_TAKE leg={a['pos_id']}: root {rid} không còn trong positions (đã đóng trước — bỏ qua credit sync)")
+        if a["reason"] == "PRUNE_BREAK":
+            # D3: 1 mã thoát PRUNE_BREAK cho cả 2 nhánh — log phân biệt (branch=LOCKED/UNWOUND)
+            branch = a.get("branch", "LOCKED")
+            log.info(f"[HEDGE] PRUNE_BREAK (branch={branch}) pos={a['pos_id']} pnl={pnl:+.2f}$ px={a['px']}")
         tg.send(f"📤 EXIT {a['reason']} @ {a['px']} · {pnl:+.2f}$")
         if executor.at_daily_cap:
             executor.halted = True
@@ -348,6 +362,32 @@ async def run() -> None:
     except Exception as e:
         log.warning(f"[STATE] snapshot load fail ({type(e).__name__}: {e}) → WARMUP seed")
 
+    # ── S4-HEDGE: re-attach rổ metadata vào adopted positions (sau StreamStalled restart) ──
+    # adopt() recover vị thế broker MỘC (không có parent_id/leg_type/hedge_credit/…) → restore từ
+    # strategy.hedge_baskets (state_snapshot.json, mirror của strategy.decide()). Rổ LOCKED/UNWOUND
+    # tiếp tục chạy đúng state; mirror stale (root đã đóng) tự prune tại decide() tick kế tiếp.
+    if getattr(C, "HEDGE_ENABLE", False) and strategy.hedge_baskets:
+        by_id = {q["id"]: q for q in executor.positions}
+        n_attached = 0
+        for rid, rec in strategy.hedge_baskets.items():
+            root = by_id.get(rid)
+            if root is not None:
+                root.setdefault("wall_px", rec.get("wall_px"))
+                root.setdefault("wall_peak_px", rec.get("wall_peak_px"))
+                root.setdefault("unwound", bool(rec.get("unwound", False)))
+                root.setdefault("hedge_credit", float(rec.get("hedge_credit", 0.0)))
+                n_attached += 1
+            for lid in rec.get("leg_ids", []):
+                legp = by_id.get(lid)
+                if legp is not None:
+                    legp["parent_id"] = rid
+                    legp["leg_type"] = "HEDGE"
+                    legp.setdefault("hedge_credit", 0.0)
+                    legp.setdefault("unwound", False)
+                    legp.setdefault("wall_px", rec.get("wall_px"))
+                    n_attached += 1
+        log.info(f"[HEDGE] re-attach rổ metadata: {n_attached} position (registry {len(strategy.hedge_baskets)} rổ)")
+
     # ── GAP CHECK (14-10): nến M1 đã trong DB → chỉ fetch phần thiếu từ MetaApi ──
     try:
         from src.gap_filler import M1GapFiller
@@ -556,12 +596,21 @@ async def run() -> None:
                     if a.get("arm"):
                         p["r1r2"] = True   # S3-B: R1/R2 entry → exit 4-lớp (TP/PSL/ROL/DRIFT-FLIP, KHÔNG TIME)
                     side = 1 if a["kind"] == "ENTER_LONG" else -1
-                    await tlog("entry_log", (
-                        now, p["id"], a["kind"], p["entry"],
-                        p["entry"] + side * C.TP_POINTS, a.get("anchor"),
-                        a.get("touch"), a.get("drift5m"),
-                    ))
-                    tg.send(f"📥 {a['kind']} @ {p['entry']} · TP {p['entry'] + side * C.TP_POINTS} · S={a.get('anchor')}")
+                    if a.get("leg_type") == "HEDGE":
+                        # S4-HEDGE: chân HEDGE không có TP trên sàn (tp=NULL) — tlog giữ semantics (TP=rỗng)
+                        await tlog("entry_log", (
+                            now, p["id"], a["kind"], p["entry"],
+                            None, a.get("anchor"),
+                            a.get("touch", 0), a.get("drift5m", 0.0),
+                        ))
+                        tg.send(f"🛡 HEDGE {a['kind']} @ {p['entry']} (root {a.get('parent_id')} · cản {a.get('anchor')} · KHÔNG-TP)")
+                    else:
+                        await tlog("entry_log", (
+                            now, p["id"], a["kind"], p["entry"],
+                            p["entry"] + side * C.TP_POINTS, a.get("anchor"),
+                            a.get("touch"), a.get("drift5m"),
+                        ))
+                        tg.send(f"📥 {a['kind']} @ {p['entry']} · TP {p['entry'] + side * C.TP_POINTS} · S={a.get('anchor')}")
             elif a["kind"] == "EXIT":
                 await exit_action(a, now, executor, tg)  # S2: chỉ tlog khi close ok
 

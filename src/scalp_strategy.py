@@ -85,6 +85,9 @@ class ScalpStrategy:
         self.m1_ohlcv: list = []            # [(ts,o,h,l,c)] m1 ĐÃ KHÉP giữ 30 — M0 scalars + EXT15 (2 nến C≥O)
         self._df_count: Dict[str, int] = {}  # pos_id → số m1-close liên tiếp drift-adverse (R-pnL<0) (DRIFT-FLIP m1-proxy)
         self._df_last_min: int = -1         # phút m1 đã update _df_count (guard 1 lần/nến)
+        # S4-HEDGE (15/10): registry rổ hedge (root_id → {wall_px, wall_peak_px, leg_ids, unwound, hedge_credit})
+        # — shadow state persistence cho metadata position (main re-attach sau adopt() StreamStalled restart)
+        self.hedge_baskets: Dict[str, dict] = {}
         # TF S-ladder: "M5" (gốc) | "M1" (CHAIRMAN 13-10 tối — scale 1/5, xem S1_* config)
         self.ladder_tf: str = getattr(cfg, "LADDER_TF", "M5")
         if self.ladder_tf == "M1":
@@ -140,6 +143,17 @@ class ScalpStrategy:
             "m1_ohlcv": [list(x) for x in self.m1_ohlcv],
             "df_count": {str(k): v for k, v in self._df_count.items()},
             "df_last_min": self._df_last_min,
+            # S4-HEDGE: rổ hedge (restore sau StreamStalled — main re-attach vào adopted positions)
+            "hedge_baskets": {
+                str(rid): dict(
+                    wall_px=rec.get("wall_px"),
+                    wall_peak_px=rec.get("wall_peak_px"),
+                    leg_ids=list(rec.get("leg_ids", [])),
+                    unwound=bool(rec.get("unwound", False)),
+                    hedge_credit=float(rec.get("hedge_credit", 0.0)),
+                )
+                for rid, rec in self.hedge_baskets.items()
+            },
         }
         with open(path, "w") as f:
             json.dump(data, f)
@@ -189,6 +203,17 @@ class ScalpStrategy:
         self.m1_ohlcv = [tuple(x) for x in data.get("m1_ohlcv", [])]
         self._df_count = {int(k): v for k, v in data.get("df_count", {}).items()}
         self._df_last_min = data.get("df_last_min", -1)
+        # S4-HEDGE (snapshot cũ thiếu key → default rỗng, load_state tolerant):
+        self.hedge_baskets = {
+            str(rid): dict(
+                wall_px=rec.get("wall_px"),
+                wall_peak_px=rec.get("wall_peak_px"),
+                leg_ids=list(rec.get("leg_ids", [])),
+                unwound=bool(rec.get("unwound", False)),
+                hedge_credit=float(rec.get("hedge_credit", 0.0)),
+            )
+            for rid, rec in (data.get("hedge_baskets") or {}).items()
+        }
         return True
 
     # ─────────────────────────── TICK FEED ───────────────────────────
@@ -633,6 +658,165 @@ class ScalpStrategy:
             if pid not in live:
                 del self._df_count[pid]
 
+    # ─────────────────────── S4-HEDGE: ORCHESTRATOR + HEDGE BASKET (15/10) ───────────────────────
+    def _can_open_new_root(self, side: str, open_pos: list) -> bool:
+        """S4 UNIFIED ORCHESTRATOR — điều kiện MẠNH BẮT BUỘC trước mọi lệnh ROOT
+        (MOM1 v0 + R1/R2), chống bắn chùm:
+        - HEDGE_ENABLE=False (baseline): giữ hành vi cũ len(open)<K_CONTEXT → regression 100% (Gate 2).
+        - HEDGE_ENABLE=True: có chân HEDGE mở / root đang UNWOUND → False (tập trung xử lý rổ);
+          roots ≥ MAX_ROOT_POSITIONS → False (chừa slot HEDGE trong K_CONTEXT);
+          từng root: giãn cách ≥ MIN_ROOT_GAP_SEC · giá cách ≥ MIN_ROOT_STEP_PTS ·
+          bồi lệnh cùng hướng CHỈ khi lệnh cũ đã lãi ≥ +0.5pts.
+        (Chân HEDGE do _manage_hedge_basket phát — KHÔNG qua gate này.)"""
+        c = self.cfg
+        if not getattr(c, "HEDGE_ENABLE", False):
+            return len(open_pos) < c.K_CONTEXT
+        if any(p.get("leg_type") == "HEDGE" or p.get("unwound") is True for p in open_pos):
+            return False
+        roots = [p for p in open_pos if not p.get("parent_id")]
+        if len(roots) >= getattr(c, "MAX_ROOT_POSITIONS", 2):
+            return False
+        gap = getattr(c, "MIN_ROOT_GAP_SEC", 20)
+        step = getattr(c, "MIN_ROOT_STEP_PTS", 1.0)
+        for r in roots:
+            if self.now_ts - r.get("entry_ts", 0) < gap:
+                return False
+            if abs(self.last_px - r["entry"]) < step:
+                return False                       # chặn triệt để lỗi 2 lệnh cách 0.01–0.24pts
+            if r.get("side") == side:
+                r_pts = (self.last_px - r["entry"]) if side == "L" else (r["entry"] - self.last_px)
+                if r_pts < 0.5:
+                    return False                  # chỉ bồi lệnh 2 khi lệnh 1 đã có đệm lãi
+        return True
+
+    def _find_structural_wall(self, root_pos: dict) -> Optional[float]:
+        """S4-HEDGE: tìm cản cấu trúc cho lệnh gốc (S → mức H PHÍA TRÊN entry · L → mức L PHÍA DƯỚI).
+        Nguồn (live, không lookahead): lvl strong_zones (confirmed·alive) + levels strategy
+        (confirmed·không-broken) + FZ grid (touches ≥ FZ_MIN_TOUCH, chưa broken).
+        Chọn mức gần giá hiện tại nhất. None = không có cản (→ nhánh PRUNE_SPAN)."""
+        c = self.cfg
+        px, entry, side = self.last_px, root_pos["entry"], root_pos["side"]
+        min_touch = getattr(c, "FZ_MIN_TOUCH", 2)
+        cands: list = []
+        try:
+            if side == "S":
+                cands += [z["px"] for z in _lvl.strong_zones("S", self.now_ts)]
+                cands += [lv.px for lv in self.levels if lv.kind == "H" and lv.confirmed and not lv.broken]
+                cands += [lvl for lvl, e in self.fz_tops.items() if e[0] >= min_touch and not e[2]]
+                above = [w for w in cands if w > entry]
+                return min(above, key=lambda w: abs(w - px)) if above else None
+            cands += [z["px"] for z in _lvl.strong_zones("B", self.now_ts)]
+            cands += [lv.px for lv in self.levels if lv.kind == "L" and lv.confirmed and not lv.broken]
+            cands += [lvl for lvl, e in self.fz_bots.items() if e[0] >= min_touch and not e[2]]
+            below = [w for w in cands if w < entry]
+            return min(below, key=lambda w: abs(w - px)) if below else None
+        except Exception:
+            return None                            # engine lvl chưa ready → fail-open (đủ levels/fz)
+
+    def _manage_hedge_basket(self, root_pos: dict, open_pos: list) -> List[dict]:
+        """S4-HEDGE — máy trạng thái 4-trạng thái của rổ lệnh gốc+đối-ứng:
+        NAKED → (pnl ≤ −HEDGE_LOCK_PTS) ENTER leg HEDGE (không TP broker; executor gỡ TP root)
+        → HEDGE_LOCKED: PRUNE_BREAK (px vượt cản ±HEDGE_BREAK_PTS, D3 branch=LOCKED) ·
+          PRUNE_SPAN (không cản, span ≥ HEDGE_MAX_SPAN_PTS) · HEDGE_TAKE (giá tại cản + leg lãi
+          ≥ HEDGE_MIN_PROFIT_PTS + giật lùi ≥ HEDGE_BOUNCE_CONFIRM_PTS khỏi wall_peak + không IMPULSE)
+        → UNWOUND: BASKET_TP (net ≥ BASKET_TP_USD) · PRUNE_BREAK (quay đầu vượt peak/cản, D3 branch=UNWOUND)
+          · PSL breaker (net ≤ −(PSL_PTS×2+0.48) = −$6.48).
+        hedge_credit = lãi ƯỚC TÍNH leg (pts×$2) — main sync giá trị THẬT từ broker khi EXIT ok.
+        State (wall_px/wall_peak_px/unwound/credit) mirror vào self.hedge_baskets → snapshot (D.1)."""
+        c = self.cfg
+        p, px = root_pos, self.last_px
+        root_id = p["id"]
+        leg = next((q for q in open_pos if q.get("parent_id") == root_id and q.get("leg_type") == "HEDGE"), None)
+        pnl_pts = (px - p["entry"]) if p["side"] == "L" else (p["entry"] - px)
+        acts: List[dict] = []
+        brk = getattr(c, "HEDGE_BREAK_PTS", 1.0)
+
+        def _emit() -> None:
+            """Mirror state rổ → registry persistence (lúc root chưa đóng; decide() prune khi root mất)."""
+            self.hedge_baskets[root_id] = dict(
+                wall_px=p.get("wall_px"),
+                wall_peak_px=p.get("wall_peak_px"),
+                leg_ids=[q["id"] for q in open_pos if q.get("parent_id") == root_id and q.get("leg_type") == "HEDGE"],
+                unwound=p.get("unwound") is True,
+                hedge_credit=float(p.get("hedge_credit", 0.0)),
+            )
+
+        # ── NAKED: chưa khóa, chưa gỡ khóa → mở chân đối ứng khi lỗ chạm ngưỡng ──
+        if leg is None and p.get("unwound") is not True:
+            if pnl_pts <= -getattr(c, "HEDGE_LOCK_PTS", 1.2):
+                w = p.get("wall_px")
+                if not w:
+                    w = self._find_structural_wall(p)     # cản hiện tại (cũ/None → tìm lại, không lookahead)
+                p["wall_px"] = w
+                acts.append({
+                    "kind": "ENTER_LONG" if p["side"] == "S" else "ENTER_SHORT",
+                    "px": px, "anchor": w if w is not None else 0.0,
+                    "level_ts": self.now_ts, "touch": 0, "drift5m": 0.0,
+                    "parent_id": root_id, "leg_type": "HEDGE",
+                })
+            _emit()
+            return acts
+
+        # ── HEDGE_LOCKED: đang có chân đối ứng mở song song ──
+        if leg is not None:
+            leg_pts = (px - leg["entry"]) if leg["side"] == "L" else (leg["entry"] - px)
+            wall = p.get("wall_px")
+            # tìm lại cản khi khóa lúc không có cản (wall_px=0/None) — cho phép upgrade PRUNE_SPAN→BREAK
+            if not wall:
+                wall = self._find_structural_wall(p)
+                p["wall_px"] = wall
+            # Nhánh tỉa 1 (D3): phá cản ≥ HEDGE_BREAK_PTS → EXIT CẢ HAI (lỗ ròng đóng băng ≈ −$3.36)
+            if wall:
+                broke = (px >= wall + brk) if p["side"] == "S" else (px <= wall - brk)
+                if broke:
+                    for tgt in (p, leg):
+                        acts.append({"kind": "EXIT", "pos_id": tgt["id"],
+                                     "reason": "PRUNE_BREAK", "branch": "LOCKED", "px": px})
+                    _emit()
+                    return acts
+            # Nhánh tỉa 2: không tìm thấy cản + span adverse ≥ HEDGE_MAX_SPAN_PTS → tỉa cặp
+            if not wall and pnl_pts <= -getattr(c, "HEDGE_MAX_SPAN_PTS", 4.5):
+                for tgt in (p, leg):
+                    acts.append({"kind": "EXIT", "pos_id": tgt["id"], "reason": "PRUNE_SPAN", "px": px})
+                _emit()
+                return acts
+            # Nhánh gỡ khóa: giá trong band cản + leg lãi ≥ MIN_PROFIT + giật lùi BOUNCE_CONFIRM
+            # khỏi wall_peak (cực adverse: S=đỉnh · L=đáy) + M0 != IMPULSE → EXIT leg (HEDGE_TAKE)
+            band = getattr(c, "FZ_BAND_PTS", 0.5)
+            in_band = False
+            if wall:
+                in_band = (wall - band <= px <= wall + brk) if p["side"] == "S" else (wall - brk <= px <= wall + band)
+            if wall and in_band:
+                peak = p.get("wall_peak_px")
+                p["wall_peak_px"] = (max(peak, px) if peak is not None else px) if p["side"] == "S" \
+                                    else (min(peak, px) if peak is not None else px)
+                p2 = p["wall_peak_px"]
+                bounced = (p2 - px) >= getattr(c, "HEDGE_BOUNCE_CONFIRM_PTS", 0.4) if p["side"] == "S" \
+                           else (px - p2) >= getattr(c, "HEDGE_BOUNCE_CONFIRM_PTS", 0.4)
+                if bounced and leg_pts >= getattr(c, "HEDGE_MIN_PROFIT_PTS", 1.5) and self.m0_regime != "IMPULSE":
+                    p["unwound"] = True
+                    p["hedge_credit"] = leg_pts * 2.0      # ước tính $/pt@LOT=0.02 (main sync broker thật)
+                    acts.append({"kind": "EXIT", "pos_id": leg["id"], "reason": "HEDGE_TAKE",
+                                 "parent_id": root_id, "px": px})
+                    _emit()
+                    return acts
+            _emit()
+            return acts
+
+        # ── UNWOUND: leg đã chốt (credit đã bank) → chốt rổ / tỉa / cầu chì ──
+        oz = getattr(c, "LOT", 0.02) * 100.0              # $/pt (LOT 0.02 = 2oz = $2/pt)
+        net = pnl_pts * oz + float(p.get("hedge_credit", 0.0))
+        ref = p.get("wall_peak_px") or p.get("wall_px")
+        if net >= getattr(c, "BASKET_TP_USD", 0.50):
+            acts.append({"kind": "EXIT", "pos_id": root_id, "reason": "BASKET_TP", "px": px})
+        elif ref and ((px >= ref + brk) if p["side"] == "S" else (px <= ref - brk)):
+            acts.append({"kind": "EXIT", "pos_id": root_id, "reason": "PRUNE_BREAK",
+                         "branch": "UNWOUND", "px": px})   # D3: mã thoát chung, log phân nhánh
+        elif net <= -(getattr(c, "PSL_PTS", 3.0) * 2.0 + 0.48):
+            acts.append({"kind": "EXIT", "pos_id": root_id, "reason": "PSL", "px": px})  # PSL breaker −$6.48
+        _emit()
+        return acts
+
     # ─────────────────────────── DECISION ───────────────────────────
     def decide(self, open_pos: List[dict], windows, rol_min: int) -> List[dict]:
         """open_pos: [dict(id, side 'L'/'S', entry, entry_ts, anchor)] → list actions"""
@@ -665,6 +849,8 @@ class ScalpStrategy:
                         # (spec: "unmet → do not enter, arm stays alive — EDGE waits next tick, pc intact")
                         if self._g2_block("S" if s_side == "S" else "B"):
                             pass
+                        elif not self._can_open_new_root(s_side, open_pos):
+                            pass            # S4 ORCHESTRATOR: chặn lệnh gốc (chưa thỏa gap/step/root-cap) — arm giữ (không burn slot)
                         else:
                             self.mom_last_candle_min = cur_min
                             self.mom_fire_count += 1
@@ -677,7 +863,7 @@ class ScalpStrategy:
                 else:
                     mom = self.mom_net()
                     pc_limit = getattr(c, "MOM_MAX_PER_CANDLE", 1)
-                    if mom >= c.MOM_THR_PTS and self.mom_fire_count < pc_limit:
+                    if mom >= c.MOM_THR_PTS and self.mom_fire_count < pc_limit and self._can_open_new_root("L", open_pos):
                         if self._g2_block("B"):      # S3-B G2-A (v0 entry B bị chặn tại H-zone/EXT15)
                             pass
                         else:
@@ -687,7 +873,7 @@ class ScalpStrategy:
                                 "kind": "ENTER_LONG", "px": self.last_px, "anchor": 0.0,
                                 "level_ts": now, "touch": c.MOM_K_BARS, "drift5m": round(mom, 3),
                             })
-                    elif mom <= -c.MOM_THR_PTS and self.mom_fire_count < pc_limit:
+                    elif mom <= -c.MOM_THR_PTS and self.mom_fire_count < pc_limit and self._can_open_new_root("S", open_pos):
                         if self._g2_block("S"):      # S3-B G2-A (v0 entry S bị chặn tại L-zone/EXT15)
                             pass
                         else:
@@ -707,6 +893,8 @@ class ScalpStrategy:
                     ):
                         if self._g2_block("B"):       # S3-B G2-A (fallback B_SNEO cũng gate)
                             break
+                        if not self._can_open_new_root("L", open_pos):
+                            break            # S4 ORCHESTRATOR: chặn lệnh gốc — không consumed, chờ cơ hội khác
                         x.consumed = True
                         acts.append({
                             "kind": "ENTER_LONG", "px": self.last_px, "anchor": x.px,
@@ -722,6 +910,8 @@ class ScalpStrategy:
                         ):
                             if self._g2_block("S"):
                                 break
+                            if not self._can_open_new_root("S", open_pos):
+                                break            # S4 ORCHESTRATOR: chặn lệnh gốc — không consumed, chờ cơ hội khác
                             x.consumed = True
                             acts.append({
                                 "kind": "ENTER_SHORT", "px": self.last_px, "anchor": x.px,
@@ -738,7 +928,9 @@ class ScalpStrategy:
                     self.r1r2_arms.remove(arm)
                     continue
                 hit = (self.last_px <= arm["px"]) if arm["side"] == "S" else (self.last_px >= arm["px"])
-                if hit and n_open < c.K_CONTEXT:
+                # S4: R1/R2 = lệnh ROOT → gate ORCHESTRATOR (baseline HEDGE_ENABLE=False
+                # ≡ n_open < K_CONTEXT — regression giữ nguyên; True = MAX_ROOT/gap/step + chừa slot HEDGE)
+                if hit and self._can_open_new_root("S" if arm["side"] == "S" else "L", open_pos):
                     self.r1r2_arms.remove(arm)
                     self.r1r2_done.add(arm["key"])   # row 18: 1 lệnh/zone/ngày/hướng (live strict)
                     acts.append({
@@ -766,9 +958,30 @@ class ScalpStrategy:
             self._df_last_min = _df_min
             self._df_update_counts(open_pos)
         for p in open_pos:
+            # S4-HEDGE: chân HEDGE (parent_id ≠ ∅) — quản lý bởi _manage_hedge_basket của ROOT
+            # (skip vòng EXIT đơn lệnh). Khi ROL kích hoạt → đóng TOÀN BỘ (ROOT + HEDGE, reason="ROL").
+            if p.get("parent_id"):
+                if rol:
+                    acts.append({"kind": "EXIT", "pos_id": p["id"], "reason": "ROL", "px": self.last_px})
+                continue
             pnl_pts = (self.last_px - p["entry"]) if p["side"] == "L" else (p["entry"] - self.last_px)
             is_r = p.get("r1r2")        # S3-B: R1/R2 → exit 4-lớp (TP/PSL/ROL/DRIFT-FLIP, KHÔNG TIME)
             reason = None
+            # S4-HEDGE: rổ LOCKED (chân HEDGE mở song song) / UNWOUND (đã gỡ khóa, credit đã bank)
+            # → BỎ QUA mọi EXIT đơn lệnh (TP/TIME/PSL/DRIFT/S_BREAK/FADE — miễn MOM_TIME_STOP 10' theo plan);
+            # máy rổ _manage_hedge_basket phát PRUNE_BREAK/PRUNE_SPAN/HEDGE_TAKE/BASKET_TP/PSL-breaker.
+            # ROL ưu tiên tuyệt đối: đóng root (legs xử lý ở nhánh parent_id trên) — KHÔNG prune khi ROL.
+            hedge_on = getattr(c, "HEDGE_ENABLE", False)
+            managed = (any(q.get("parent_id") == p["id"] and q.get("leg_type") == "HEDGE" for q in open_pos)
+                       or p.get("unwound") is True)
+            if rol and hedge_on:
+                self.peak_fav.pop(p["id"], None)
+                acts.append({"kind": "EXIT", "pos_id": p["id"], "reason": "ROL", "px": self.last_px})
+                continue
+            if hedge_on and managed:
+                acts.extend(self._manage_hedge_basket(p, open_pos))
+                self.peak_fav.pop(p["id"], None)
+                continue
             if psl > 0 and pnl_pts <= -psl:
                 reason = "PSL"     # ưu tiên đầu: thoát trước mọi TP/ratchet/DRIFT/FADE/TIME/ROL
             if reason is None and is_r:
@@ -828,11 +1041,21 @@ class ScalpStrategy:
             if reason:
                 self.peak_fav.pop(p["id"], None)
                 acts.append({"kind": "EXIT", "pos_id": p["id"], "reason": reason, "px": self.last_px})
+            # S4-HEDGE NAKED (root chưa khóa, chưa unwind — managed đã continue ở trên):
+            # máy rổ phát ENTER chân đối ứng khi pnl ≤ −HEDGE_LOCK_PTS (chỉ ENTER, không EXIT).
+            # Tick đã quyết EXIT cho root (PSL/TIME/DRIFT/ROL/TP...) → KHÔNG mở hedge mới.
+            if hedge_on and reason is None:
+                acts.extend(self._manage_hedge_basket(p, open_pos))
         # dọn peak_fav vị thế đã chết (adopt/recover không reset dict)
         live_ids = {p["id"] for p in open_pos}
         for pid in list(self.peak_fav):
             if pid not in live_ids:
                 del self.peak_fav[pid]
+        # S4: prune mirror rổ (root đã đóng cuối tick → registry sạch trước save_state)
+        if getattr(c, "HEDGE_ENABLE", False):
+            live_roots = {q["id"] for q in open_pos if not q.get("parent_id")}
+            for k in [k for k in self.hedge_baskets if k not in live_roots]:
+                del self.hedge_baskets[k]
         return acts
 
     def tp_plan(self, open_pos: List[dict]) -> Dict[str, Optional[float]]:

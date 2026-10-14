@@ -189,3 +189,57 @@ Brief §1.1 định nghĩa trạng thái nhưng §3.3 không đưa mã này vào
 
 ## 📐 TÓM TẮT 1 ĐOẠN (để giao implementer)
 Thêm máy trạng thái 3-level (NAKED → HEDGE_LOCKED → UNWOUND) vào `decide()`: khi ROOT âm 1.2pt mở chân đối ứng không-TP, gỡ TP của ROOT trên broker, giữ khóa 1:1 tại vùng cản cấu trúc; gỡ chân hedge khi cản giữ (hồi ≥0.4pt, không IMPULSE) hoặc tỉa cả rổ khi giá phá cản ≥1.0pt — sàn lỗ cố định −$3.36, trần −$6.48; sửa F1 EXIT_SYNC bằng deal history (fallback +$2.52 dương, không âm); K_CONTEXT chỉ đếm ROOT; restart tại ROL; evidence qua 4 gate (py_compile → offline → replay 12 ngày → verifier).
+
+---
+
+## 7. BẰNG CHỨNG THỰC THI (15/10 · worktree `s4-hedge` · base `16cfd1b`)
+
+> Quy tắc ghi: chỉ ghi số đã đo (LUẬT 3 Empirical). Worktree `../XAU_SCALP5-s4-hedge` (D4),
+> bot live PID 7710 chạy nguyên gốc suốt quá trình (zero-downtime ✓ — verify ps 01:31 elapsed).
+
+### 7.1. Audit trước khi code (audit code thật ≠ code trong plan)
+| Hạng mục plan | Trạng thái tại base `16cfd1b` |
+|---|---|
+| main.py: `client.shutdown()` trước `StreamStalled` (WCH/H6) | **ĐÃ CÓ** (main.py L294–299, patch 22:5x 14/10) → không làm lại |
+| main.py: SQLite cross-thread fix cho `_lvl` (LVL-THREADING) | **ĐÃ CÓ** (main.py L326–333 boot + L412–417 hook, `sqlite3.connect` sync) → không làm lại |
+| `docs/S4-HEDGE-plan.md` §4 B6: "truyền metadata rổ + credit thực" | **CHƯA CÓ** → implement (exit_action sync + re-attach sau adopt) |
+
+### 7.2. Thay đổi đã code (whitelist D1, 7/8 khối)
+| File | Thay đổi | Dòng chính |
+|---|---|---|
+| `src/config.py` | append-only 11 hằng S4-HEDGE (D2: `HEDGE_ENABLE=False`) | cuối file |
+| `src/scalp_strategy.py` | `__init__`: registry `hedge_baskets` (persistence snapshot) · `save_state`/`load_state`: `hedge_baskets` (tolerant snapshot cũ) · `_can_open_new_root()` (baseline ≡ `n<K_CONTEXT`; hedge-ON: MAX_ROOT=2 + GAP 20s + STEP 1.0pt + cùng-hướng cần đệm ≥+0.5pts + khóa khi có leg/unwound) · `_find_structural_wall()` (lvl strong_zones + levels + FZ grid, gần giá nhất, None → PRUNE_SPAN) · `_manage_hedge_basket()` (NAKED→LOCKED→UNWOUND: PRUNE_BREAK LOCKED/UNWOUND (D3 branch=), PRUNE_SPAN, HEDGE_TAKE (band cản + leg ≥1.5pts + giật lùi ≥0.4 khỏi wall_peak + không IMPULSE), BASKET_TP net ≥+0.50$, PSL-breaker net ≤−6.48$) · `decide()`: 4 gate root (MOM1 PULLBACK/EDGE×2 + B_SNEO×2 + R1/R2 fill) + vòng EXIT: skip legs (chỉ ROL), managed-root (LOCKED/UNWOUND → skip mọi exit đơn lệnh, miễn TIME), NAKED machine (ENTER leg), prune mirror | quyết định |
+| `src/scalp_executor.py` | `enter()`: leg HEDGE không TP broker + gỡ TP root parent sau khớp + metadata 5 trường · `sync()`: F1 fix (deal thật → fallback +$2.52 DƯƠNG · leg anomaly 0.0+warn) | enter L~120, sync L~90 |
+| `main.py` | `exit_action()`: sync `hedge_credit` thật (HEDGE_TAKE→root) + log `PRUNE_BREAK (branch=…)` (D3) · entry tlog leg (tp=NULL) + TG 🛡 · re-attach rổ metadata sau adopt+state-load (survive StreamStalled) | exit_action L~120, boot L~350, loop L~560 |
+| `test_offline.py` | exit-set + 4 nhãn HEDGE · run_day attach metadata leg (giống executor) | L~40, L~121 |
+| `_replay_hedge.py` | MỚI: đối kháng 12 phiên (02/10→14/10) DB ro, A=baseline/B=S4, report `logs/replay_hedge.txt` | file mới |
+| `STATE.md` | L2 approval + whitelist + audit NOTE (ghi TRƯỚC khi edit, theo AGENTS.md) | đầu file |
+
+### 7.3. Kết quả 4 Gates (15/10)
+| Gate | Lệnh | Kết quả |
+|---|---|---|
+| 1 Syntax | `py_compile` 6 file | **PASS ✅** |
+| 2 Regression (HEDGE_ENABLE=False) | `_test_state` (round-trip OK, có `hedge_baskets`) + `test_s2` 9/9 OK + `test_offline` **ALL PASS** (pin=471 · mix {PSL:93,TP:342,TIME:36} · B pin=19 — 100% khớp V2) | **PASS ✅** |
+| 3 Replay 12d | `_replay_hedge.py` → `logs/replay_hedge.txt` | **FAIL ❌ (0/3)** — xem 7.4 |
+| 4 Verifier | `opencode run --agent verifier` (review diff + docs + replay) | (chạy sau commit) |
+
+### 7.4. SỔ SỐ GATE 3 (DB `../XAU_SCALP5/data/scalp5.db` ro · TF=1m · 11,650 nến · spread 0.48$)
+- **A (Baseline V2, hedge OFF):** 4,886 entries · **+$6,985.97** (TP×3,592 · PSL×1,099 · TIME×195)
+- **B (S4-HEDGE+ORCH):** 238 entries · **+$217.66** (BASKET_TP×5 · HEDGE_TAKE×6 · PRUNE_BREAK×84 (42 rổ LOCKED) · TP×113 · PSL×14 · EOD×16) · 56 rổ
+- Tiêu chí: (1) worst_basket **−$7.05** ≥ −$6.48 → **FAIL** · (2) PRUNE_LOCKED 42 rổ ≈ −$3.36±0.10: outliers **37/42** (đo −3.44…−6.67$) → **FAIL** · (3) PnL B < A (−$6,768.31) → **FAIL**
+
+### 7.5. CHẨN ĐOÁN (first-principles, không cảm tính)
+1. **Gate 3 = FAIL QUYẾT ĐỊNH (không phải proxy m1):** edge của V2 nằm ở VOLUME (4,886 lệnh, TP +$2.52 ×3,592 ≈ +$9k bèo). Orchestrator (MAX_ROOT=2 · không root mới khi rổ active) bóp volume còn 1/20 (+217$) → MỌI hedge "hoàn hảo" cũng không bù được. **Đây là kết quả định lượng của design D1-D4, không phải bug code** (code = đúng spec; regression Gate 2 xanh 100%).
+2. **Gate 1/2 = m1-proxy artifact (δ overshoot):** PRUNE_LOCKED lý thuyết −$3.36 là đúng khi leg khớp đúng px=entry+1.2 (LIVE: tick ~1s → δ≤0.2pts → −$3.4…−$3.9). Replay m1 (4 tick/nến) chạm −1.2 tại tick HIGH nến → δ đến ~1.8pts → −$7.05. **LIVE sẽ tốt hơn số replay**, nhưng gate 3 vẫn FAIL → quyết định D2 giữ `HEDGE_ENABLE=False` ĐÚNG.
+3. **Fix evidence chạy replay (đã sửa trong session này):** runner ban đầu snapshot rổ tại lúc ROOT đóng (thiếu PnL leg cùng tick) + key leg sai → worst −$88 (sai, chỉ root) → sửa in-place gộp root+legs → −$7.05 (đúng). Bài học: "bằng chứng phải đo đúng thứ cần đo" (LUẬT 3).
+
+### 7.6. QUYẾT ĐỊNH THEO PLAN + BÀN GIAO
+- **D2: GIỮ `HEDGE_ENABLE=False`** (Gate 3 FAIL 0/3) → KHÔNG flip, KHÔNG re-baseline pin test_offline (chế độ hedge-ON chưa được nghiệm thu).
+- **MERGE: CHƯA đủ điều kiện** (plan Phase 4 yêu cầu 4/4 Gates + verifier APPROVE). Branch `s4-hedge` commit code + bằng chứng, **chờ Human quyết định phương án** (xem §8).
+
+## 8. PHƯƠNG ÁN CHO HUMAN (sau Gate 3 FAIL)
+| # | Phương án | Nội dung | Trade-off |
+|---|---|---|---|
+| P1 | **Ship subset "an-toàn-hóa" (khuyến nghị xét trước)** | Merge CHỈ: fix F1 EXIT_SYNC + tlog/tg leg-ready code (mặc định tắt) — hedge logic nằm sau flag `HEDGE_ENABLE=False` → merge không đổi hành vi bot live (Gate 2 đã chứng minh 100% parity), giữ sẵn code để bật khi đủ điều kiện | Zero rủi ro live (flag off) · nhưng không "mở" được S4 |
+| P2 | **Tune lại orchestrator + re-gate** | nới MAX_ROOT_POSITIONS (2→4/∞) · giảm MIN_ROOT_GAP_SEC · giữ hedge LOCK (đo riêng "chỉ hedge, không bóp volume") — chạy lại `_replay_hedge.py` (cập nhật theo tham số) | Cần thêm 1 cycle replay + verifier · có thể Gate 3 vẫn FAIL (volume là vấn đề gốc) |
+| P3 | **Giữ branch, đóng S4-HEDGE** | Chỉ commit + bằng chứng; S4 chuyển BACKLOG (STATE.md) | An toàn nhất · S4 không được triển khai |

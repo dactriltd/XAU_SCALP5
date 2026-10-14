@@ -35,11 +35,19 @@ def run_day(rows, cfg):
             for a in s.decide(open_pos, cfg.WINDOWS, cfg.ROLLOVER_MIN):
                 if a["kind"].startswith("ENTER"):
                     max_open = max(max_open, len(open_pos) + 1)
-                    open_pos.append({
+                    posd = {
                         "id": str(next_id),
                         "side": "L" if a["kind"] == "ENTER_LONG" else "S",
                         "entry": a["px"], "entry_ts": t, "anchor": a["anchor"],
-                    })
+                    }
+                    # S4-HEDGE: chân HEDGE mang metadata rổ (giống executor.enter is_leg)
+                    if a.get("leg_type") == "HEDGE":
+                        posd.update({
+                            "parent_id": a.get("parent_id"), "leg_type": "HEDGE",
+                            "hedge_credit": 0.0, "unwound": False,
+                            "wall_px": a.get("anchor"),
+                        })
+                    open_pos.append(posd)
                     ents.append(a)
                     next_id += 1
                 else:
@@ -118,8 +126,11 @@ def main() -> int:
     ok &= check(f"≤{cap} lệnh/M1 candle (re-fire strong)", worst_pc <= cap,
                 f"{len(mins)} entries · worst={worst_pc}/nến (≤{cap})")
     ok &= check("K=gate", max_open <= C.K_CONTEXT, f"max_open={max_open} ≤ {C.K_CONTEXT}")
-    ok &= check("exit ⊆ {TP,TIME,ROL,PSL,DRIFT} (KHÔNG SL/S_BREAK/FADE — PSL=S1 14/10 · DRIFT=R1R2 S3-B)",
-                set(reasons) <= {"TP", "TIME", "ROL", "PSL", "DRIFT"}, f"{dict(reasons)}")
+    ok &= check("exit ⊆ {TP,TIME,ROL,PSL,DRIFT,HEDGE_TAKE,BASKET_TP,PRUNE_BREAK,PRUNE_SPAN} "
+                "(KHÔNG SL/S_BREAK/FADE — PSL=S1 14/10 · DRIFT=R1R2 S3-B · S4-HEDGE exit-set 15/10)",
+                set(reasons) <= {"TP", "TIME", "ROL", "PSL", "DRIFT",
+                                 "HEDGE_TAKE", "BASKET_TP", "PRUNE_BREAK", "PRUNE_SPAN"},
+                f"{dict(reasons)}")
     ok &= check("tần suất 12-10", 465 <= len(ents) <= 477,
                 f"{len(ents)} entries (run_day KHÔNG daily-cap → pin=471 [S1 PSL re-fire + S3-B R1R2 arms, "
                 f"re-baseline 14/10 tối]; pin cũ: V3+FZ=426, V0=286, V3-FZ_OFF=397)")

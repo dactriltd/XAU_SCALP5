@@ -84,11 +84,33 @@ class ScalpExecutor:
         for p in await self.client.get_positions() or []:
             if isinstance(p, dict) and self._mine(p):
                 found[str(p.get("id"))] = p
-        # (b)
+        # (b) — S4 F1 FIX (EXIT_SYNC ≈ −$3.00$ cũ):
+        # (1) ƯU TIÊN deal THẬT từ get_history_deals (position OUT: profit real broker trả)
+        # (2) fallback công thức: TP-fill trên sàn → PnL ƯỚC LƯỢNG LUÔN DƯƠNG
+        #     +(TP_POINTS − SPREAD_PTS) × oz = +(1.5 − 0.24) × 2.0 = +$2.52
+        #     (lỗi F1 cũ: (entry − tp) ký hiệu theo SHORT → ghi −$3.00 cho lệnh lãi)
+        # (3) chân HEDGE (không TP) broker không tự đóng → 0.0 + warning (anomaly)
         for pos in list(self.positions):
             if pos["id"] not in found:
                 self.positions.remove(pos)
-                pnl_est = self.cfg.TP_POINTS * self.oz * (1 if pos["side"] == "L" else -1)
+                pnl_est: Optional[float] = None
+                from_ts = int(pos.get("entry_ts") or time.time() - 86400)
+                try:
+                    for d in await self.client.get_history_deals(from_ts) or []:
+                        if (isinstance(d, dict) and str(d.get("positionId")) == pos["id"]
+                                and "OUT" in str(d.get("entryType") or "").upper()
+                                and d.get("profit") is not None):
+                            pnl_est = float(d["profit"])
+                            break
+                except Exception as e:
+                    log.warning(f"[EXEC] sync F1: get_history_deals fail ({type(e).__name__}) → ước lượng")
+                if pnl_est is None:
+                    if pos.get("leg_type") == "HEDGE":
+                        pnl_est = 0.0
+                        log.warning(f"[EXEC] {pos['id']} HEDGE-leg biến mất (không TP, không SL) — PnL ước lượng 0.0 (anomaly, kiểm tra exit_log)")
+                    else:
+                        spread = getattr(self.cfg, "SPREAD_PTS", 0.24)
+                        pnl_est = round((self.cfg.TP_POINTS - spread) * self.oz, 2)   # F1: luôn DƯƠNG (TP-fill)
                 self.note_closed(pnl_est, reason="TP_BROKER")
                 # S2: expose cho main → ghi exit_log (trước đây không ai log vị thế broker-đóng)
                 self.synced_exits.append({"pos_id": pos["id"], "pnl_est": pnl_est, "ts": int(time.time())})
@@ -122,13 +144,16 @@ class ScalpExecutor:
             return False
         side = 1 if action["kind"] == "ENTER_LONG" else -1
         px = float(action["px"])
-        tp = round(px + side * c.TP_POINTS, 2)
+        # S4-HEDGE: chân HEDGE = lệnh đối ứng KHÔNG TP cố định trên sàn (chốt lời do máy rổ
+        # strategy quyết: HEDGE_TAKE/PRUNE_BREAK/PRUNE_SPAN/BASKET_TP — sàn không tự đóng)
+        is_leg = action.get("leg_type") == "HEDGE"
+        tp = None if is_leg else round(px + side * c.TP_POINTS, 2)
         res = await self.client.create_market_order(
             c.SYMBOL, c.LOT, side,
             stop_loss=None,            # NO-SL (design)
             take_profit=tp,
             magic=c.MAGIC,
-            comment="SCALP5",
+            comment="SCALP5" + ("-HEDGE" if is_leg else ""),
         )
         if not res:
             log.error("[EXEC] create_market_order → no response (thất bại, không retry)")
@@ -149,18 +174,37 @@ class ScalpExecutor:
             # nhưng FILL (openPrice) lệch theo spread + vận tốc giá (log 20:32: px=4187.14 → fill
             # 4188.528 → TP=4188.64 = +0.11pts thay vì +1.5). Sửa: TP tính theo FILL, modify broker
             # nếu lệch >0.1pts
-            tp2 = round(entry + side * c.TP_POINTS, 2)
-            if abs(tp2 - tp) > 0.1:
-                await self.client.modify_position(str(pos.get("id")), None, tp2)
-                log.info(f"[EXEC] TP sửa {tp}→{tp2} (slippage {abs(tp2 - tp):.2f}pts, fill={entry})")
-                tp = tp2
-            self.positions.append({
+            if not is_leg:
+                tp2 = round(entry + side * c.TP_POINTS, 2)
+                if abs(tp2 - tp) > 0.1:
+                    await self.client.modify_position(str(pos.get("id")), None, tp2)
+                    log.info(f"[EXEC] TP sửa {tp}→{tp2} (slippage {abs(tp2 - tp):.2f}pts, fill={entry})")
+                    tp = tp2
+            posd = {
                 "id": str(pos.get("id")),
                 "side": "L" if side == 1 else "S",
                 "entry": entry,
                 "entry_ts": strategy.now_ts,
                 "anchor": action.get("anchor"),
-            })
+            }
+            if is_leg:
+                # S4-HEDGE metadata rổ (strategy _manage_hedge_basket đọc; main re-attach sau restart)
+                posd.update({
+                    "parent_id": str(action.get("parent_id")),
+                    "leg_type": "HEDGE",
+                    "hedge_credit": 0.0,
+                    "unwound": False,
+                    "wall_px": action.get("anchor"),
+                })
+                # GỖI TP trên sàn của lệnh ROOT parent: khi khóa 2 đầu, sàn không được
+                # tự đóng ROOT tại TP 1.5 (chốt lời rổ do máy trạng thái quyết định)
+                parent_id = str(action.get("parent_id"))
+                if any(x["id"] == parent_id for x in self.positions):
+                    await self.client.modify_position(parent_id, None, None)
+                    log.info(f"[EXEC] HEDGE {posd['id']} → gỡ TP broker của ROOT {parent_id} (khóa 2 đầu)")
+                else:
+                    log.warning(f"[EXEC] HEDGE {posd['id']}: ROOT {parent_id} không tìm thấy trong positions (TP root giữ nguyên — anomaly)")
+            self.positions.append(posd)
         log.info(
             f"[EXEC] {action['kind']} entry={entry} TP={tp} SL=None anchor={action.get('anchor')} "
             f"T={action.get('touch')} d5m={action.get('drift5m'):+.2f}"
