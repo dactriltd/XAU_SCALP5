@@ -1,0 +1,8 @@
+# XAU_SCALP5 core dependencies
+metaapi-cloud-sdk>=29.1.1
+aiosqlite>=0.19.0
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+
+# Dashboard (tuỳ chọn) — xem requirements_dashboard.txt
+# streamlit / plotly / pandas / numpy

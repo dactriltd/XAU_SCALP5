@@ -1,0 +1,24 @@
+# ── SECRETS (TUYỆT ĐỐI KHÔNG PUSH) ─────────────────────────
+.env
+.env.*
+!.env.example
+auth/
+secrets/
+credentials/
+payments/
+
+# ── RUNTIME ARTIFACTS (chỉ chạy local) ─────────────────────
+data/
+logs/
+.metaapi/
+__pycache__/
+*.pyc
+*.db
+*.db-*
+*.sqlite
+*.log
+.venv/
+~
+
+# macOS
+.DS_Store
