@@ -142,7 +142,7 @@ class MetaAPIClient:
         # connected to broker yet" surfaced as silent sync timeouts and
         # subscription failures — make readiness an explicit, retried gate.
         self._stream_sync_timeout = 180.0
-        self._stream_sync_max_retries = 5       # 5 retries (1 initial + 5 = 6 attempts)
+        self._stream_sync_max_retries = 2       # HUMAN 15/10: 3 attempts (1 initial + 2 retries) — trước = 5 retries (6 attempts)
         self._stream_sync_backoff_step = 10.0   # sleeps 10s, 20s, 30s, 40s, 50s
         # USER 14/10 (ORDER BOOT + anti-rate-limit): throttle tuần tự giữa các RPC lịch sử —
         # ≥5s giữa 2 lần gọi + honor 429 recommendedRetryTime (docs: "throttle historical data requests").
