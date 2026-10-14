@@ -129,10 +129,10 @@ M0_GDIR_TOL_VREV: Final[float] = 0.5   # ngưỡng G-DIR tại V-REV
 M0_REV_PTS_VREV: Final[float] = 0.75   # pts ngưỡng xác nhận REVERSE (V-REV)
 
 # --- S4-HEDGE & UNIFIED CAMPAIGN ORCHESTRATOR (14/10 · P2-Tuned 15/10 HUMAN) ---
-HEDGE_ENABLE: Final[bool] = False              # PARK D2-SAFE (15/10 P2-Tuned): bộ P2-Tuned đã staged (K=8 · MAX_ROOT=4 ·
-                                                # STEP 0.35 · GAP 5s · per-position hedge · BASKET_TIME 30′ · UNWIND_BREAKEVEN)
-                                                # nhưng GATE 3 FAIL 0/3 (worst_basket −$10.36 · 184/201 PRUNE outliers · PnL +$561<+$6,986)
-                                                # → flag CHỈ flip True khi _replay_hedge.py PASS 3/3 (quy tắc D2).
+HEDGE_ENABLE: Final[bool] = True               # LIVE TOÀN DIỆN (15/10 HUMAN): P2-Tuned K=8 · MAX_ROOT=4 · STEP 0.35 · GAP 5s ·
+                                                # per-position hedge · BASKET_TIME 30′ · UNWIND_BREAKEVEN. D2 OVERRIDE bởi HUMAN:
+                                                # backtest m1-proxy không phản ánh tick thật → chấp nhận LIVE (rủi ro: tail NAKED/LOCKED
+                                                # chưa có PSL breaker — worst_basket replay −$10.36; theo dõi live, sẵn O1 patch sau).
 HEDGE_LOCK_PTS: Final[float] = 1.2             # Âm 1.2 pts (~-$2.40) -> mở lệnh đối ứng khóa lỗ (-$3.36 cả spread)
 HEDGE_MIN_PROFIT_PTS: Final[float] = 1.5       # Chân Hedge phải lãi >= 1.5 pts tại cản mới xét gỡ khóa
 HEDGE_BREAK_PTS: Final[float] = 1.0            # Giá vượt vùng cản >= 1.0 pt -> xác nhận PHÁ CẢN (PRUNE_BREAK)
