@@ -16,7 +16,7 @@ DRIFT5M_BUY: Final[float] = 2.5      # drift5m > +$2.5 = CHẾ ĐỘ MUA (P90 ne
 DRIFT5M_SELL: Final[float] = -2.5    # drift5m < −$2.5 = CHẾ ĐỘ BÁN
 TP_POINTS: Final[float] = 1.5        # TP = 1.5 pts = $3 @0.02lot (CHAIRMAN)
 LOT: Final[float] = 0.02           # 0.02 lot = 2 oz = $2/point (CHAIRMAN CHỐT)
-K_CONTEXT: Final[int] = 4        # lệnh ĐỒNG THỜI — CHAIRMAn 13-10 19:xx: "chỉ 2 lệnh đồng thời hơi ít" → 4 (replay xác nhận)
+K_CONTEXT: Final[int] = 8        # lệnh ĐỒNG THỜI — P2-Tuned 15/10 (HUMAN): 4 lệnh gốc (MAX_ROOT_POSITIONS=4) + 4 slot chân HEDGE
 
 # --- SWING M5 (S-ladder) ---
 S_M5_SWINGS: Final[int] = 90         # 90 nến M5 = 7.5h buffer lấy swing trước (mở phiên)
@@ -128,15 +128,23 @@ M0_HYST_TICKS: Final[int] = 120        # hysteresis đổi tag (tick-phút)
 M0_GDIR_TOL_VREV: Final[float] = 0.5   # ngưỡng G-DIR tại V-REV
 M0_REV_PTS_VREV: Final[float] = 0.75   # pts ngưỡng xác nhận REVERSE (V-REV)
 
-# --- S4-HEDGE & UNIFIED CAMPAIGN ORCHESTRATOR (14/10) ---
-HEDGE_ENABLE: Final[bool] = False              # D2: False lúc code -> flip True sau khi PASS _replay_hedge.py
+# --- S4-HEDGE & UNIFIED CAMPAIGN ORCHESTRATOR (14/10 · P2-Tuned 15/10 HUMAN) ---
+HEDGE_ENABLE: Final[bool] = False              # PARK D2-SAFE (15/10 P2-Tuned): bộ P2-Tuned đã staged (K=8 · MAX_ROOT=4 ·
+                                                # STEP 0.35 · GAP 5s · per-position hedge · BASKET_TIME 30′ · UNWIND_BREAKEVEN)
+                                                # nhưng GATE 3 FAIL 0/3 (worst_basket −$10.36 · 184/201 PRUNE outliers · PnL +$561<+$6,986)
+                                                # → flag CHỈ flip True khi _replay_hedge.py PASS 3/3 (quy tắc D2).
 HEDGE_LOCK_PTS: Final[float] = 1.2             # Âm 1.2 pts (~-$2.40) -> mở lệnh đối ứng khóa lỗ (-$3.36 cả spread)
 HEDGE_MIN_PROFIT_PTS: Final[float] = 1.5       # Chân Hedge phải lãi >= 1.5 pts tại cản mới xét gỡ khóa
 HEDGE_BREAK_PTS: Final[float] = 1.0            # Giá vượt vùng cản >= 1.0 pt -> xác nhận PHÁ CẢN (PRUNE_BREAK)
 HEDGE_BOUNCE_CONFIRM_PTS: Final[float] = 0.4   # Giá chạm cản và giật lùi >= 0.4 pt -> xác nhận cản giữ được (HEDGE_TAKE)
 HEDGE_MAX_SPAN_PTS: Final[float] = 4.5         # Khoảng cách tối đa từ lệnh gốc nếu không tìm thấy cản (PRUNE_SPAN)
 BASKET_TP_USD: Final[float] = 0.50             # Chốt lời toàn rổ khi (Floating PnL + Hedge Credit) >= +$0.50
+BASKET_TP_TRIGGER_USD: Final[float] = 1.20     # P2-Tuned: UNWIND_BREAKEVEN_GUARD — peak rổ >= +1.20 rồi lùi về <= 0.50 → chốt (không để xanh quay đỏ)
+HEDGE_TIMEOUT_MIN: Final[int] = 30            # P2-Tuned: rổ LOCKED/UNWOUND treo >= 30' mà net ròng >= -BASKET_TIME_MAX_LOSS_USD → BASKET_TIME (giải phóng slot)
+BASKET_TIME_MAX_LOSS_USD: Final[float] = 1.50 # P2-Tuned: trần lỗ ròng tại BASKET_TIME (rổ lỗ sâu hơn vẫn giữ chờ cản)
 HEDGE_ALLOW_SCALE_IN: Final[bool] = False      # Tắt nhồi lệnh mặc định để bảo toàn vốn tối đa
-MIN_ROOT_STEP_PTS: Final[float] = 1.0          # Khoảng cách tối thiểu giữa 2 lệnh gốc (chống bắn chùm trùng giá)
-MIN_ROOT_GAP_SEC: Final[int] = 20             # Giãn cách tối thiểu 20 giây giữa 2 lệnh gốc
-MAX_ROOT_POSITIONS: Final[int] = 2            # Tối đa 2 lệnh gốc; dành 2 slot trong K_CONTEXT=4 cho lệnh HEDGE
+MIN_ROOT_STEP_PTS: Final[float] = 0.35         # P2-Tuned: chỉ chặn trùng giá sát < 0.35pt (các ROOT CÙNG CHIỀU), không chặn lệnh rải theo sóng
+MIN_ROOT_GAP_SEC: Final[int] = 5               # P2-Tuned: giãn cách tối thiểu 5s giữa 2 ROOT cùng chiều (chống bắn trùng trong vài giây)
+MAX_ROOT_POSITIONS: Final[int] = 4            # P2-Tuned: 4 lệnh gốc đồng thời (= công suất V2); chân HEDGE dùng slot riêng trong K_CONTEXT=8
+# P2-Tuned: per-position hedge — root nào âm tự cặp chân HEDGE riêng (parent_id); KHÔNG khóa toàn cục;
+# root UNWOUND (chân đã chốt) vẫn cho các root khác mở lệnh mới (slot gốc còn trống = tự do bắt sóng).

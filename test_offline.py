@@ -111,29 +111,42 @@ def main() -> int:
             ok = abs(m2) >= C.MOM_STRONG_PTS - EPS
         return ok
 
-    n_sig_bad = sum(1 for a in ents if not sig_ok(a))
-    ok &= check("tín hiệu PULLBACK (|close[m−1]−close[m−1−K]| ≥ THR, hoặc strong m−2 ≥ STRONG)",
-                n_sig_bad == 0, f"{n_sig_bad}/{len(ents)} entry vi phạm (0 = mọi lệnh đều có tín hiệu thật)")
+    # P2-Tuned (15/10): invariant tín hiệu M1 MẠNH chỉ áp dụng cho lệnh v0 (MOM1) —
+    # chân HEDGE (leg_type="HEDGE", mở theo máy rổ, KHÔNG có tín hiệu M1) + R1R2 arm (limit-zone)
+    # KHÔNG áp dụng (diagnostic 15/10: 7/82 "vi phạm" cũ = legs, v0 = 0/58 ✓).
+    sig_ents = [a for a in ents if not a.get("leg_type") and "arm" not in a]
+    n_sig_bad = sum(1 for a in sig_ents if not sig_ok(a))
+    ok &= check("tín hiệu PULLBACK (|close[m−1]−close[m−1−K]| ≥ THR, hoặc strong m−2 ≥ STRONG) [v0-only]",
+                n_sig_bad == 0, f"{n_sig_bad}/{len(sig_ents)} entry-v0 vi phạm "
+                f"({len(ents) - len(sig_ents)} legs/R1R2 excluded, không cần tín hiệu M1)")
     ok &= check("hướng dip/bật (MUA vào dip dưới đỉnh · BÁN vào bật trên đáy)",
                 all((a["kind"] == "ENTER_LONG" and a["drift5m"] is not None) or
                     (a["kind"] == "ENTER_SHORT" and a["drift5m"] is not None) for a in ents),
                 f"LONG {sum(1 for a in ents if a['kind']=='ENTER_LONG')} · "
                 f"SHORT {sum(1 for a in ents if a['kind']=='ENTER_SHORT')}")
     # RE-FIRE: strong signal cho phép +1 lệnh/candle (MOM_MAX_PER_CANDLE+1)
-    per_min = Counter(mins)
+    # P2-Tuned (15/10): đếm CHO LỆNH TÍN HIỆU (v0 + R1R2) — legs HEDGE mở theo máy rổ,
+    # rải theo sóng (P2-Tuned "3–4 lệnh liên hoàn/niệp"), KHÔNG nằm trong cap re-fire.
+    per_min = Counter(a["level_ts"] // 60 for a in sig_ents)
     worst_pc = max(per_min.values()) if per_min else 0
     cap = C.MOM_MAX_PER_CANDLE + (1 if C.MOM_STRONG_PTS > 0 else 0)
-    ok &= check(f"≤{cap} lệnh/M1 candle (re-fire strong)", worst_pc <= cap,
-                f"{len(mins)} entries · worst={worst_pc}/nến (≤{cap})")
+    ok &= check(f"≤{cap} lệnh-tín-hiệu/M1 candle (re-fire strong)", worst_pc <= cap,
+                f"{len(sig_ents)} entries · worst={worst_pc}/nến (≤{cap}) · {len(ents) - len(sig_ents)} legs P2-Tuned")
     ok &= check("K=gate", max_open <= C.K_CONTEXT, f"max_open={max_open} ≤ {C.K_CONTEXT}")
-    ok &= check("exit ⊆ {TP,TIME,ROL,PSL,DRIFT,HEDGE_TAKE,BASKET_TP,PRUNE_BREAK,PRUNE_SPAN} "
+    ok &= check("exit ⊆ {TP,TIME,ROL,PSL,DRIFT,HEDGE_TAKE,BASKET_TP,PRUNE_BREAK,PRUNE_SPAN,BASKET_TIME,UNWIND_BREAKEVEN} "
                 "(KHÔNG SL/S_BREAK/FADE — PSL=S1 14/10 · DRIFT=R1R2 S3-B · S4-HEDGE exit-set 15/10)",
                 set(reasons) <= {"TP", "TIME", "ROL", "PSL", "DRIFT",
-                                 "HEDGE_TAKE", "BASKET_TP", "PRUNE_BREAK", "PRUNE_SPAN"},
+                                 "HEDGE_TAKE", "BASKET_TP", "PRUNE_BREAK", "PRUNE_SPAN",
+                                 "BASKET_TIME", "UNWIND_BREAKEVEN"},
                 f"{dict(reasons)}")
-    ok &= check("tần suất 12-10", 465 <= len(ents) <= 477,
-                f"{len(ents)} entries (run_day KHÔNG daily-cap → pin=471 [S1 PSL re-fire + S3-B R1R2 arms, "
-                f"re-baseline 14/10 tối]; pin cũ: V3+FZ=426, V0=286, V3-FZ_OFF=397)")
+    # pin theo HEDGE_ENABLE: ON=82 (58 v0 + 24 legs, P2-Tuned hedge) · OFF=493 (baseline V2 mở rộng K_CONTEXT=8)
+    if getattr(C, "HEDGE_ENABLE", False):
+        lo, hi, pinv = 78, 86, "82 [P2-Tuned hedge-ON: 58 v0 + 24 legs]"
+    else:
+        lo, hi, pinv = 489, 497, "493 [P2-Tuned hedge-OFF: baseline mở rộng K_CONTEXT=8]"
+    ok &= check(f"tần suất (pin={pinv})", lo <= len(ents) <= hi,
+                f"{len(ents)} entries (v0+legs · {pinv}; pin cũ hedge-off K=4=471 [S1 PSL re-fire + S3-B R1R2 arms]; "
+                f"cũ hơn: V3+FZ=426, V0=286)")
 
     # ── B: B_SNEO regression (sau fix merge-swallow) ──
     print(f"── B: B_SNEO (M1 · bounce {2.5} · merge-skip-broken fix · {'ALLDAY' if C.WINDOWS_ALL else 'SESSION'}) · {len(rows)} M1 ──")

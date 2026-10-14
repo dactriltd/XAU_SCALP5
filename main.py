@@ -376,6 +376,7 @@ async def run() -> None:
                 root.setdefault("wall_peak_px", rec.get("wall_peak_px"))
                 root.setdefault("unwound", bool(rec.get("unwound", False)))
                 root.setdefault("hedge_credit", float(rec.get("hedge_credit", 0.0)))
+                root.setdefault("net_peak_usd", float(rec.get("net_peak_usd", 0.0)))
                 n_attached += 1
             for lid in rec.get("leg_ids", []):
                 legp = by_id.get(lid)

@@ -151,6 +151,7 @@ class ScalpStrategy:
                     leg_ids=list(rec.get("leg_ids", [])),
                     unwound=bool(rec.get("unwound", False)),
                     hedge_credit=float(rec.get("hedge_credit", 0.0)),
+                    net_peak_usd=float(rec.get("net_peak_usd", 0.0)),
                 )
                 for rid, rec in self.hedge_baskets.items()
             },
@@ -211,6 +212,7 @@ class ScalpStrategy:
                 leg_ids=list(rec.get("leg_ids", [])),
                 unwound=bool(rec.get("unwound", False)),
                 hedge_credit=float(rec.get("hedge_credit", 0.0)),
+                net_peak_usd=float(rec.get("net_peak_usd", 0.0)),   # P2-Tuned (snapshot cũ thiếu key → 0.0)
             )
             for rid, rec in (data.get("hedge_baskets") or {}).items()
         }
@@ -663,30 +665,28 @@ class ScalpStrategy:
         """S4 UNIFIED ORCHESTRATOR — điều kiện MẠNH BẮT BUỘC trước mọi lệnh ROOT
         (MOM1 v0 + R1/R2), chống bắn chùm:
         - HEDGE_ENABLE=False (baseline): giữ hành vi cũ len(open)<K_CONTEXT → regression 100% (Gate 2).
-        - HEDGE_ENABLE=True: có chân HEDGE mở / root đang UNWOUND → False (tập trung xử lý rổ);
-          roots ≥ MAX_ROOT_POSITIONS → False (chừa slot HEDGE trong K_CONTEXT);
-          từng root: giãn cách ≥ MIN_ROOT_GAP_SEC · giá cách ≥ MIN_ROOT_STEP_PTS ·
-          bồi lệnh cùng hướng CHỈ khi lệnh cũ đã lãi ≥ +0.5pts.
+        - HEDGE_ENABLE=True, P2-Tuned (15/10 HUMAN): PER-POSITION HEDGE — KHÔNG khóa toàn cục
+          (root nào âm tự cặp chân HEDGE riêng qua parent_id); các slot ROOT còn trống trong
+          MAX_ROOT_POSITIONS vẫn tự do bắt sóng mới. Điều kiện giữ:
+          roots < MAX_ROOT_POSITIONS · với các ROOT CÙNG CHIỀU: giãn cách ≥ MIN_ROOT_GAP_SEC
+          · giá cách ≥ MIN_ROOT_STEP_PTS (chống lỗi trùng giá 0.01–0.24pt).
+          (Đã BỎ: khóa toàn cục khi có chân HEDGE/unwound · đòi lệnh trước lãi +0.5pts.)
         (Chân HEDGE do _manage_hedge_basket phát — KHÔNG qua gate này.)"""
         c = self.cfg
         if not getattr(c, "HEDGE_ENABLE", False):
             return len(open_pos) < c.K_CONTEXT
-        if any(p.get("leg_type") == "HEDGE" or p.get("unwound") is True for p in open_pos):
-            return False
         roots = [p for p in open_pos if not p.get("parent_id")]
-        if len(roots) >= getattr(c, "MAX_ROOT_POSITIONS", 2):
+        if len(roots) >= getattr(c, "MAX_ROOT_POSITIONS", 4):
             return False
-        gap = getattr(c, "MIN_ROOT_GAP_SEC", 20)
-        step = getattr(c, "MIN_ROOT_STEP_PTS", 1.0)
+        gap = getattr(c, "MIN_ROOT_GAP_SEC", 5)
+        step = getattr(c, "MIN_ROOT_STEP_PTS", 0.35)
         for r in roots:
+            if r.get("side") != side:
+                continue                        # P2-Tuned: chỉ kiểm tra ROOT cùng chiều
             if self.now_ts - r.get("entry_ts", 0) < gap:
                 return False
             if abs(self.last_px - r["entry"]) < step:
-                return False                       # chặn triệt để lỗi 2 lệnh cách 0.01–0.24pts
-            if r.get("side") == side:
-                r_pts = (self.last_px - r["entry"]) if side == "L" else (r["entry"] - self.last_px)
-                if r_pts < 0.5:
-                    return False                  # chỉ bồi lệnh 2 khi lệnh 1 đã có đệm lãi
+                return False                    # chặn triệt để lỗi 2 lệnh cách 0.01–0.35pts
         return True
 
     def _find_structural_wall(self, root_pos: dict) -> Optional[float]:
@@ -719,8 +719,11 @@ class ScalpStrategy:
         → HEDGE_LOCKED: PRUNE_BREAK (px vượt cản ±HEDGE_BREAK_PTS, D3 branch=LOCKED) ·
           PRUNE_SPAN (không cản, span ≥ HEDGE_MAX_SPAN_PTS) · HEDGE_TAKE (giá tại cản + leg lãi
           ≥ HEDGE_MIN_PROFIT_PTS + giật lùi ≥ HEDGE_BOUNCE_CONFIRM_PTS khỏi wall_peak + không IMPULSE)
-        → UNWOUND: BASKET_TP (net ≥ BASKET_TP_USD) · PRUNE_BREAK (quay đầu vượt peak/cản, D3 branch=UNWOUND)
-          · PSL breaker (net ≤ −(PSL_PTS×2+0.48) = −$6.48).
+          · BASKET_TIME (P2-Tuned: rổ treo ≥ HEDGE_TIMEOUT_MIN mà net ròng ≥ −BASKET_TIME_MAX_LOSS_USD → giải phóng slot)
+        → UNWOUND: PSL breaker (net ≤ −(PSL_PTS×2+0.48) = −$6.48, ưu tiên đầu) · BASKET_TP (net ≥ BASKET_TP_USD)
+          · UNWIND_BREAKEVEN (P2-Tuned guard: peak net ≥ BASKET_TP_TRIGGER_USD rồi lùi về ≤ BASKET_TP_USD → chốt,
+            rổ đã xanh không được quay về đỏ) · BASKET_TIME (P2-Tuned, như LOCKED) ·
+          PRUNE_BREAK (quay đầu vượt peak/cản, D3 branch=UNWOUND).
         hedge_credit = lãi ƯỚC TÍNH leg (pts×$2) — main sync giá trị THẬT từ broker khi EXIT ok.
         State (wall_px/wall_peak_px/unwound/credit) mirror vào self.hedge_baskets → snapshot (D.1)."""
         c = self.cfg
@@ -739,6 +742,7 @@ class ScalpStrategy:
                 leg_ids=[q["id"] for q in open_pos if q.get("parent_id") == root_id and q.get("leg_type") == "HEDGE"],
                 unwound=p.get("unwound") is True,
                 hedge_credit=float(p.get("hedge_credit", 0.0)),
+                net_peak_usd=float(p.get("net_peak_usd", 0.0)),   # P2-Tuned: peak net rổ (UNWIND_BREAKEVEN guard)
             )
 
         # ── NAKED: chưa khóa, chưa gỡ khóa → mở chân đối ứng khi lỗ chạm ngưỡng ──
@@ -800,20 +804,42 @@ class ScalpStrategy:
                                  "parent_id": root_id, "px": px})
                     _emit()
                     return acts
+            # P2-Tuned BASKET_TIME: rổ khóa treo ≥ HEDGE_TIMEOUT_MIN mà net ròng (root+leg ước tính)
+            # ≥ −BASKET_TIME_MAX_LOSS_USD → đóng cả rổ (chống chôn vốn sideway hẹp, giải phóng slot)
+            oz = getattr(c, "LOT", 0.02) * 100.0
+            if (self.now_ts - p.get("entry_ts", 0)) >= getattr(c, "HEDGE_TIMEOUT_MIN", 30) * 60:
+                net_lock = (pnl_pts + leg_pts) * oz
+                if net_lock >= -getattr(c, "BASKET_TIME_MAX_LOSS_USD", 1.50):
+                    for tgt in (p, leg):
+                        acts.append({"kind": "EXIT", "pos_id": tgt["id"], "reason": "BASKET_TIME", "px": px})
+                    _emit()
+                    return acts
             _emit()
             return acts
 
-        # ── UNWOUND: leg đã chốt (credit đã bank) → chốt rổ / tỉa / cầu chì ──
+        # ── UNWOUND: leg đã chốt (credit đã bank) → chốt rổ / guard / timeout / tỉa / cầu chì ──
         oz = getattr(c, "LOT", 0.02) * 100.0              # $/pt (LOT 0.02 = 2oz = $2/pt)
         net = pnl_pts * oz + float(p.get("hedge_credit", 0.0))
+        # P2-Tuned UNWIND_BREAKEVEN_GUARD: theo dõi peak net rổ — rổ đã xanh ≥ trigger không được quay về đỏ
+        p["net_peak_usd"] = max(float(p.get("net_peak_usd", 0.0)), net)
+        peak_usd = p["net_peak_usd"]
         ref = p.get("wall_peak_px") or p.get("wall_px")
-        if net >= getattr(c, "BASKET_TP_USD", 0.50):
+        if net <= -(getattr(c, "PSL_PTS", 3.0) * 2.0 + 0.48):
+            acts.append({"kind": "EXIT", "pos_id": root_id, "reason": "PSL", "px": px})  # PSL breaker −$6.48 (cầu chì, ưu tiên đầu)
+        elif net >= getattr(c, "BASKET_TP_USD", 0.50):
             acts.append({"kind": "EXIT", "pos_id": root_id, "reason": "BASKET_TP", "px": px})
+        elif (peak_usd >= getattr(c, "BASKET_TP_TRIGGER_USD", 1.20)
+              and net <= getattr(c, "BASKET_TP_USD", 0.50)):
+            # P2-Tuned guard: rổ đã vượt +$1.20, giá giật ngược về ≤ +$0.50 → chốt bỏ túi
+            # (fire khi tick BASKET_TP trước đó chưa apply được — retry an toàn, không để xanh quay đỏ)
+            acts.append({"kind": "EXIT", "pos_id": root_id, "reason": "UNWIND_BREAKEVEN", "px": px})
+        elif ((self.now_ts - p.get("entry_ts", 0)) >= getattr(c, "HEDGE_TIMEOUT_MIN", 30) * 60
+              and net >= -getattr(c, "BASKET_TIME_MAX_LOSS_USD", 1.50)):
+            # P2-Tuned BASKET_TIME: rổ UNWOUND treo ≥ 30' (net ≥ −$1.50) → thu hồi slot cho lệnh mới
+            acts.append({"kind": "EXIT", "pos_id": root_id, "reason": "BASKET_TIME", "px": px})
         elif ref and ((px >= ref + brk) if p["side"] == "S" else (px <= ref - brk)):
             acts.append({"kind": "EXIT", "pos_id": root_id, "reason": "PRUNE_BREAK",
                          "branch": "UNWOUND", "px": px})   # D3: mã thoát chung, log phân nhánh
-        elif net <= -(getattr(c, "PSL_PTS", 3.0) * 2.0 + 0.48):
-            acts.append({"kind": "EXIT", "pos_id": root_id, "reason": "PSL", "px": px})  # PSL breaker −$6.48
         _emit()
         return acts
 

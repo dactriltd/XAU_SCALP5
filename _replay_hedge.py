@@ -3,8 +3,10 @@
 
 So sánh 2 CẤU HÌNH trên CÙNG 12 phiên (02/10→14/10) với ScalpStrategy THẬT (4 tick/m1 nến,
 parity test_offline/_replay_v2):
-  A: Baseline V2 — HEDGE_ENABLE=False (PSL 3.0pts cắt trực tiếp, không có orchestrator)
-  B: S4-HEDGE + UNIFIED ORCHESTRATOR — HEDGE_ENABLE=True (LOCK 1.2 · BREAK 1.0 · BASKET_TP 0.50)
+  A: Baseline V2 — HEDGE_ENABLE=False, K_CONTEXT=4 (PIN — module config P2-Tuned K=8, A phải = live V2 cap)
+  B: S4-HEDGE P2-Tuned — HEDGE_ENABLE=True (K_CONTEXT=8 · MAX_ROOT=4 · STEP 0.35 · GAP 5s ·
+     per-position hedge KHÔNG khóa toàn cục · BASKET_TIME 30′ (net≥−1.50$) · UNWIND_BREAKEVEN guard
+     (peak≥1.20$ rồi ≤0.50$ → chốt) · BASKET_TP 0.50)
 GATE 3 (3 tiêu chí PASS):
   1. worst_basket_usd(B) ≥ −6.48 (không rổ nào vượt trần PSL-cũ)
   2. Mọi rổ PRUNE_BREAK (branch=LOCKED) có lỗ ròng ≈ −3.36 (±0.10)
@@ -87,7 +89,10 @@ def ns(**over) -> SimpleNamespace:
 def run_variant(hedges_on: bool):
     """Chạy 1 cấu hình trên 12 phiên → (report-dict). Strategy LIÊN TỤC (live-like),
     M0 reset mỗi phiên (E6 parity). Rổ = {root_id: {pnl, kind, branch, closed}}."""
-    cfg = ns(HEDGE_ENABLE=hedges_on)
+    over = {"HEDGE_ENABLE": hedges_on}
+    if not hedges_on:
+        over["K_CONTEXT"] = 4      # PIN Baseline V2: module config = P2-Tuned K_CONTEXT=8 — A phải chạy đúng cap V2 live
+    cfg = ns(**over)
     s = ScalpStrategy(cfg)
     # warmup (parity main seed: feed nến, KHÔNG decide)
     for ts, o, h, l, c in warmup:
@@ -179,7 +184,8 @@ def run_variant(hedges_on: bool):
         per_session.append((T0, len(bars), sess_pnl))
     # rổ ĐÓNG = mọi basket đã có exit-kind (pnl = TỒNG root + legs — in-place, đã gộp trọn tick)
     closed_baskets = [dict(b, root_id=k) for k, b in baskets.items() if b.get("kind")]
-    return dict(label=("B: S4-HEDGE+ORCH" if hedges_on else "A: Baseline V2"),
+    return dict(label=("B: S4-HEDGE P2-Tuned (K=8 · MAX_ROOT=4 · per-pos-hedge)" if hedges_on
+                       else "A: Baseline V2 (K=4 pin · hedge off)"),
                 pnl_total=pnl_total, exit_mix=exit_mix, n_entries=n_entries,
                 closed_baskets=closed_baskets, per_session=per_session)
 
@@ -234,6 +240,7 @@ verdict = "PASS ✅ (3/3 → FLIP HEDGE_ENABLE=True)" if (g1 and g2 and g3) else
 W(f"  VERDICT GATE 3: {verdict}")
 W("")
 W("ASSUMPTIONS / CHÊNH:")
+W(" - A = Baseline V2 PIN K_CONTEXT=4 (module config P2-Tuned K=8 — A không bị kéo theo; so sánh B vs V2 live cap).")
 W(" - KHÔNG LVL engine (fail-open): R1/R2 arms vắng mặt ở CẢ A lẫn B (fair parity — gate đo S4-HEDGE, không đo R1R2).")
 W(" - M0 reset mỗi phiên (E6 parity _replay_v2) · 4 tick/m1 nến (o@10 h@25 l@40 c@58 — parity test_offline).")
 W(" - PnL$ = pts×2 − 0.48 (spread round-trip 0.24×2) · vị thế chưa EOD/ROL đóng tại close phiên (fallback).")
