@@ -133,12 +133,14 @@ def main() -> int:
     ok &= check(f"≤{cap} lệnh-tín-hiệu/M1 candle (re-fire strong)", worst_pc <= cap,
                 f"{len(sig_ents)} entries · worst={worst_pc}/nến (≤{cap}) · {len(ents) - len(sig_ents)} legs P2-Tuned")
     ok &= check("K=gate", max_open <= C.K_CONTEXT, f"max_open={max_open} ≤ {C.K_CONTEXT}")
-    ok &= check("exit ⊆ {TP,TIME,ROL,PSL,DRIFT,HEDGE_TAKE_PAIR,PRUNE_RECOVERY,PSL_BASKET,ORPHAN_CLEANUP,PRUNE_BREAK,PRUNE_SPAN,BASKET_TIME} "
-                "(KHÔNG SL/S_BREAK/FADE — P2-H 15/10 exit-set: UNWOUND xóa → HEDGE_TAKE_PAIR/PRUNE_RECOVERY/PSL_BASKET/ORPHAN_CLEANUP)",
+    ok &= check("exit ⊆ {TP,TIME,ROL,PSL,DRIFT,HEDGE_TAKE_PAIR,PRUNE_RECOVERY,PSL_BASKET,ORPHAN_CLEANUP,PRUNE_BREAK,PRUNE_SPAN,BASKET_TIME,CROSS_RESCUE} "
+                "(KHÔNG SL/S_BREAK/FADE — P2-H 15/10 exit-set: UNWOUND xóa → HEDGE_TAKE_PAIR/PRUNE_RECOVERY/PSL_BASKET/ORPHAN_CLEANUP; "
+                "P2-H2 C7: CROSS_RESCUE_WIN/LOSER = pre-lock rescue)",
                 set(reasons) <= {"TP", "TIME", "ROL", "PSL", "DRIFT",
                                  "HEDGE_TAKE", "HEDGE_TAKE_PAIR", "PRUNE_RECOVERY", "PSL_BASKET",
                                  "ORPHAN_CLEANUP", "PRUNE_BREAK", "PRUNE_SPAN",
-                                 "BASKET_TIME", "UNWIND_BREAKEVEN", "BASKET_TP"},
+                                 "BASKET_TIME", "UNWIND_BREAKEVEN", "BASKET_TP",
+                                 "CROSS_RESCUE_WIN", "CROSS_RESCUE_LOSER"},
                 f"{dict(reasons)}")
     # pin theo HEDGE_ENABLE: ON=565 (P2-H 15/10: PRUNE_RECOVERY + UNWOUND-PAIR + O1-Pro fast-slot —
     # rổ đóng sớm → slot tự do → volume tăng; re-baseline HUMAN-approved C3) · OFF=493 (baseline V2 K_CONTEXT=8)

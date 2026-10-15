@@ -879,6 +879,54 @@ class ScalpStrategy:
         return acts
 
     # ─────────────────────────── DECISION ───────────────────────────
+    def _pre_lock_rescue(self, open_pos: List[dict], acts: List[dict]) -> None:
+        """P2-H2 C7-spike (15/10 HUMAN-approved): PRE-LOCK RESCUE — O(N), 1 cặp/tick.
+        Khi M0 ∈ {RANGE, CREEP}: 1 lệnh NAKED DƯƠNG (peak_fav ≥ +0.9pts, đã giật lùi ≥ 0.25pts
+        từ đỉnh → đang chững) + 1 lệnh NAKED ÂM trong [-1.15, -0.45]pts (vùng TRƯỚC ngưỡng
+        hedge −1.2) → nếu net cặp ≥ +$0.30 thì đóng CẢ HAI (CROSS_RESCUE_WIN/LOSER),
+        chặn rổ hedge MỚI chưa ra đời (P2-H chưa có prevention: loser tới −1.2 sẽ đẻ
+        rổ = 2 slot + rủi BASKET_TIME 15-30′ + PSL_BASKET −6.48).
+        Toán (HUMAN): 2 NAKED cùng chiều ΔE_entry < TP 1.5pts → ngưỡng peak (không phải current)
+        là bắt buộc để rescue đủ loser cùng chiều trong vùng nguy hiểm [-1.15, -0.60].
+        KHÔNG chạm: chân HEDGE (parent_id), root đang có rổ mở, vị thế đã bị EXIT tick này."""
+        c = self.cfg
+        if not (getattr(c, "CROSS_RESCUE_ENABLE", False) and getattr(c, "HEDGE_ENABLE", False)):
+            return
+        if self.m0_regime not in ("RANGE", "CREEP") or self.last_px is None:
+            return
+        px = self.last_px
+        exiting = {a.get("pos_id") for a in acts if a.get("kind") == "EXIT"}
+        root_with_leg = {q.get("parent_id") for q in open_pos if q.get("parent_id")}
+        usd_per_pt = c.LOT * 100.0     # 0.02lot = 2oz → $2/pt (spec HUMAN × 2.0)
+        winners: list = []   # (pnl_pts, pos, peak_pts)
+        losers: list = []    # (pnl_pts, pos)
+        for p in open_pos:
+            pid = p["id"]
+            if pid in exiting or p.get("parent_id") or pid in root_with_leg:
+                continue
+            pnl_pts = (px - p["entry"]) if p["side"] == "L" else (p["entry"] - px)
+            peak = self.peak_fav.get(pid)
+            if peak is None:
+                continue
+            peak_pts = (peak - p["entry"]) if p["side"] == "L" else (p["entry"] - peak)
+            if peak_pts >= c.CROSS_RESCUE_PEAK_PTS and (peak_pts - pnl_pts) >= c.CROSS_RESCUE_PULLBACK_PTS:
+                winners.append((pnl_pts, p, peak_pts))
+            elif -c.CROSS_RESCUE_LOSS_MIN_PTS <= pnl_pts <= -c.CROSS_RESCUE_LOSS_MAX_PTS:
+                losers.append((pnl_pts, p))
+        if not winners or not losers:
+            return
+        winners.sort(key=lambda x: x[0], reverse=True)
+        w_pts, w, _ = winners[0]
+        for l_pts, l in sorted(losers, key=lambda x: x[0]):   # âm nặng nhất trước (gần −1.2 nhất)
+            net_pts = w_pts + l_pts
+            if net_pts * usd_per_pt >= c.CROSS_RESCUE_MIN_NET_USD:
+                self.peak_fav.pop(w["id"], None)
+                self.peak_fav.pop(l["id"], None)
+                acts.append({"kind": "EXIT", "pos_id": w["id"], "reason": "CROSS_RESCUE_WIN", "px": px})
+                acts.append({"kind": "EXIT", "pos_id": l["id"], "reason": "CROSS_RESCUE_LOSER", "px": px})
+                # (strategy module im lặng — visibility: [EXEC] EXIT ... reason=CROSS_RESCUE_* + exit_log)
+                return   # 1 cặp/tick
+
     def decide(self, open_pos: List[dict], windows, rol_min: int) -> List[dict]:
         """open_pos: [dict(id, side 'L'/'S', entry, entry_ts, anchor)] → list actions"""
         c = self.cfg
@@ -1044,6 +1092,13 @@ class ScalpStrategy:
                     # Guard `open_pos`: list trống đột ngột (RPC stall) → KHÔNG kết luận mồ côi.
                     acts.append({"kind": "EXIT", "pos_id": p["id"], "reason": "ORPHAN_CLEANUP", "px": self.last_px})
                 continue
+            # P2-H2 C7: track đỉnh lãi thuận cho MỌI vị thế NAKED (live MODE=MOM1 + pol=NOW →
+            # block ratchet L1073-1082 bị skip → peak_fav trống; C7 cần peak để đo "đã chững lại").
+            _px0 = self.last_px
+            _sgn0 = 1 if p["side"] == "L" else -1
+            _pf0 = self.peak_fav.get(p["id"])
+            if _px0 is not None and (_pf0 is None or _sgn0 * (_px0 - _pf0) > 0):
+                self.peak_fav[p["id"]] = _px0
             pnl_pts = (self.last_px - p["entry"]) if p["side"] == "L" else (p["entry"] - self.last_px)
             is_r = p.get("r1r2")        # S3-B: R1/R2 → exit 4-lớp (TP/PSL/ROL/DRIFT-FLIP, KHÔNG TIME)
             reason = None
@@ -1143,6 +1198,8 @@ class ScalpStrategy:
                 _rec = self.hedge_baskets[k]
                 if (self.now_ts - int(_rec.get("seen_ts") or 0)) >= _grace:
                     del self.hedge_baskets[k]
+        # P2-H2 C7-spike: PRE-LOCK RESCUE (sau solo-loop, trước return; 1 cặp/tick, O(N))
+        self._pre_lock_rescue(open_pos, acts)
         return acts
 
     def tp_plan(self, open_pos: List[dict]) -> Dict[str, Optional[float]]:

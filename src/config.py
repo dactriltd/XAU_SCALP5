@@ -154,6 +154,18 @@ HEDGE_RECOVERY_PTS: Final[float] = 1.0        # P2-H: giá QUAY ĐẦU thuận r
                                               # đóng cả cặp — xóa điểm mù kịch bản 2 (rổ #3/#4 01:08 kẹt 102′, B1/B3/B4 07:06-07:15)
 REGISTRY_PRUNE_GRACE_SEC: Final[int] = 45     # P2-H M1: prune-guard — record registry chỉ xóa khi root vắng ≥ 45s (grace),
                                               # và KHÔNG BAO GIỜ wipe khi open_pos rỗng đột ngột (RPC stall)
+# P2-H2 C7-spike (15/10 HUMAN-approved): PRE-LOCK RESCUE — lệnh NAKED DƯƠNG (đỉnh peak_fav ≥ +0.9pts,
+# đã giật lùi ≥ 0.25pts) ghép 1 lệnh NAKED ÂM trong [-1.15, -0.45]pts (vùng TRƯỚC ngưỡng hedge −1.2)
+# → đóng CẢ HAI khi net ≥ +$0.30 = chặn rổ hedge MỚI (prevention). Chỉ M0 ∈ {RANGE, CREEP}.
+# Toán (HUMAN 15/10): 2 NAKED cùng chiều có ΔE_entry < TP_POINTS = 1.5pts → pnl_win ≥ +0.90 hiện tại
+# KHÔNG BAO GIỜ cứu được loser cùng chiều vùng [-1.15, -0.60] → đổi ngưỡng trigger sang
+# PEAK ≥ 0.9 (hiện tại ≥ +0.65) + band loser mở rộng [-1.15, -0.45] + net ≥ +0.15pts (+$0.30).
+CROSS_RESCUE_ENABLE: Final[bool] = True
+CROSS_RESCUE_PEAK_PTS: Final[float] = 0.9      # đỉnh lãi thuận winner (peak_fav − entry) ≥ +0.9pts
+CROSS_RESCUE_PULLBACK_PTS: Final[float] = 0.25 # winner đã giật lùi ≥ 0.25pts từ đỉnh (đang chững)
+CROSS_RESCUE_LOSS_MAX_PTS: Final[float] = 0.45 # loser NAKED âm tối đa −0.45pts (nặng hơn → không cứu, để hedge)
+CROSS_RESCUE_LOSS_MIN_PTS: Final[float] = 1.15 # loser NAKED âm tối thiểu −1.15pts (trước ngưỡng khóa −1.2)
+CROSS_RESCUE_MIN_NET_USD: Final[float] = 0.30  # net ròng cặp (pnl_win + pnl_lose) × $/pt ≥ +$0.30
 HEDGE_ALLOW_SCALE_IN: Final[bool] = False      # Tắt nhồi lệnh mặc định để bảo toàn vốn tối đa
 MIN_ROOT_STEP_PTS: Final[float] = 0.35         # P2-Tuned: chỉ chặn trùng giá sát < 0.35pt (các ROOT CÙNG CHIỀU), không chặn lệnh rải theo sóng
 MIN_ROOT_GAP_SEC: Final[int] = 5               # P2-Tuned: giãn cách tối thiểu 5s giữa 2 ROOT cùng chiều (chống bắn trùng trong vài giây)
