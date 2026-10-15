@@ -133,15 +133,17 @@ def main() -> int:
     ok &= check(f"≤{cap} lệnh-tín-hiệu/M1 candle (re-fire strong)", worst_pc <= cap,
                 f"{len(sig_ents)} entries · worst={worst_pc}/nến (≤{cap}) · {len(ents) - len(sig_ents)} legs P2-Tuned")
     ok &= check("K=gate", max_open <= C.K_CONTEXT, f"max_open={max_open} ≤ {C.K_CONTEXT}")
-    ok &= check("exit ⊆ {TP,TIME,ROL,PSL,DRIFT,HEDGE_TAKE,BASKET_TP,PRUNE_BREAK,PRUNE_SPAN,BASKET_TIME,UNWIND_BREAKEVEN} "
-                "(KHÔNG SL/S_BREAK/FADE — PSL=S1 14/10 · DRIFT=R1R2 S3-B · S4-HEDGE exit-set 15/10)",
+    ok &= check("exit ⊆ {TP,TIME,ROL,PSL,DRIFT,HEDGE_TAKE_PAIR,PRUNE_RECOVERY,PSL_BASKET,ORPHAN_CLEANUP,PRUNE_BREAK,PRUNE_SPAN,BASKET_TIME} "
+                "(KHÔNG SL/S_BREAK/FADE — P2-H 15/10 exit-set: UNWOUND xóa → HEDGE_TAKE_PAIR/PRUNE_RECOVERY/PSL_BASKET/ORPHAN_CLEANUP)",
                 set(reasons) <= {"TP", "TIME", "ROL", "PSL", "DRIFT",
-                                 "HEDGE_TAKE", "BASKET_TP", "PRUNE_BREAK", "PRUNE_SPAN",
-                                 "BASKET_TIME", "UNWIND_BREAKEVEN"},
+                                 "HEDGE_TAKE", "HEDGE_TAKE_PAIR", "PRUNE_RECOVERY", "PSL_BASKET",
+                                 "ORPHAN_CLEANUP", "PRUNE_BREAK", "PRUNE_SPAN",
+                                 "BASKET_TIME", "UNWIND_BREAKEVEN", "BASKET_TP"},
                 f"{dict(reasons)}")
-    # pin theo HEDGE_ENABLE: ON=82 (58 v0 + 24 legs, P2-Tuned hedge) · OFF=493 (baseline V2 mở rộng K_CONTEXT=8)
+    # pin theo HEDGE_ENABLE: ON=565 (P2-H 15/10: PRUNE_RECOVERY + UNWOUND-PAIR + O1-Pro fast-slot —
+    # rổ đóng sớm → slot tự do → volume tăng; re-baseline HUMAN-approved C3) · OFF=493 (baseline V2 K_CONTEXT=8)
     if getattr(C, "HEDGE_ENABLE", False):
-        lo, hi, pinv = 78, 86, "82 [P2-Tuned hedge-ON: 58 v0 + 24 legs]"
+        lo, hi, pinv = 537, 593, "565 [P2-H hedge-ON: RECOVERY×198 · TAKE_PAIR×18 · BASKET_TIME×16]"
     else:
         lo, hi, pinv = 489, 497, "493 [P2-Tuned hedge-OFF: baseline mở rộng K_CONTEXT=8]"
     ok &= check(f"tần suất (pin={pinv})", lo <= len(ents) <= hi,

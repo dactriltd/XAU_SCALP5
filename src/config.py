@@ -143,8 +143,9 @@ BASKET_TP_TRIGGER_USD: Final[float] = 1.20     # P2-Tuned: UNWIND_BREAKEVEN_GUAR
 HEDGE_TIMEOUT_MIN: Final[int] = 30            # P2-H: rổ LOCKED CÓ CẢN treo >= 30' mà net ròng <= -PSL_BASKET_USD → BASKET_TIME (giải phóng slot)
 HEDGE_TIMEOUT_NOWALL_MIN: Final[int] = 15     # P2-H (Red Team O1-Pro): rổ KHÔNG tìm thấy cản (wall=None) — HEDGE_TAKE không thể
                                               # kích hoạt → timeout 15' (3 chu kỳ HB) thay 30' (chống chôn slot sideway hẹp)
-BASKET_TIME_MAX_LOSS_USD: Final[float] = 1.50 # P2-Tuned: trần lỗ ròng tại BASKET_TIME (rổ lỗ sâu hơn vẫn giữ chờ cản)
-                                              # P2-H C3: → 6.48 (cùng cycle O1-Pro, re-baseline pin 1 lần)
+BASKET_TIME_MAX_LOSS_USD: Final[float] = 6.48 # P2-H O1-Pro (HUMAN 15/10): sàn −1.50 = DEAD CODE (net frozen −2.1…−4.5
+                                              # không bao giờ >= −1.50, 0/9 rổ 15/10) → −6.48: mọi net frozen đều qua floor,
+                                              # rổ LOCKED đóng đúng lúc timeout (giải phóng slot, PnL frozen không đổi)
 PSL_BASKET_USD: Final[float] = 6.48           # P2-H: cầu chì RỔ (net ≤ −6.48) đặt ĐẦU _manage_hedge_basket, mọi trạng thái
                                               # (NAKED/LOCKED; UNWOUND đã XÓA theo UNWOUND-PAIR 15/10) — chặn slippage khóa bất thường
 HEDGE_WALL_PAD_PTS: Final[float] = 0.3        # P2-H (Red Team F1-Dir): đệm an toàn — cản phải nằm cách giá tham chiếu >= 0.3pts

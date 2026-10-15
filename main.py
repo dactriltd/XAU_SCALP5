@@ -389,18 +389,13 @@ async def run() -> None:
             if root is not None:
                 root.setdefault("wall_px", rec.get("wall_px"))
                 root.setdefault("wall_peak_px", rec.get("wall_peak_px"))
-                root.setdefault("unwound", bool(rec.get("unwound", False)))
-                root.setdefault("hedge_credit", float(rec.get("hedge_credit", 0.0)))
-                root.setdefault("net_peak_usd", float(rec.get("net_peak_usd", 0.0)))
+                # P2-H: không tag lại unwound/hedge_credit (nhánh UNWOUND đã xóa — UNWOUND-PAIR)
                 n_attached += 1
             for lid in rec.get("leg_ids", []):
                 legp = by_id.get(lid)
                 if legp is not None:
                     legp["parent_id"] = rid
                     legp["leg_type"] = "HEDGE"
-                    legp.setdefault("hedge_credit", 0.0)
-                    legp.setdefault("unwound", False)
-                    legp.setdefault("wall_px", rec.get("wall_px"))
                     n_attached += 1
         log.info(f"[HEDGE] re-attach rổ metadata: {n_attached} position (registry {len(strategy.hedge_baskets)} rổ)")
 
