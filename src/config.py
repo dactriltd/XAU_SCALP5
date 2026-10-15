@@ -140,8 +140,19 @@ HEDGE_BOUNCE_CONFIRM_PTS: Final[float] = 0.4   # Giá chạm cản và giật l�
 HEDGE_MAX_SPAN_PTS: Final[float] = 4.5         # Khoảng cách tối đa từ lệnh gốc nếu không tìm thấy cản (PRUNE_SPAN)
 BASKET_TP_USD: Final[float] = 0.50             # Chốt lời toàn rổ khi (Floating PnL + Hedge Credit) >= +$0.50
 BASKET_TP_TRIGGER_USD: Final[float] = 1.20     # P2-Tuned: UNWIND_BREAKEVEN_GUARD — peak rổ >= +1.20 rồi lùi về <= 0.50 → chốt (không để xanh quay đỏ)
-HEDGE_TIMEOUT_MIN: Final[int] = 30            # P2-Tuned: rổ LOCKED/UNWOUND treo >= 30' mà net ròng >= -BASKET_TIME_MAX_LOSS_USD → BASKET_TIME (giải phóng slot)
+HEDGE_TIMEOUT_MIN: Final[int] = 30            # P2-H: rổ LOCKED CÓ CẢN treo >= 30' mà net ròng <= -PSL_BASKET_USD → BASKET_TIME (giải phóng slot)
+HEDGE_TIMEOUT_NOWALL_MIN: Final[int] = 15     # P2-H (Red Team O1-Pro): rổ KHÔNG tìm thấy cản (wall=None) — HEDGE_TAKE không thể
+                                              # kích hoạt → timeout 15' (3 chu kỳ HB) thay 30' (chống chôn slot sideway hẹp)
 BASKET_TIME_MAX_LOSS_USD: Final[float] = 1.50 # P2-Tuned: trần lỗ ròng tại BASKET_TIME (rổ lỗ sâu hơn vẫn giữ chờ cản)
+                                              # P2-H C3: → 6.48 (cùng cycle O1-Pro, re-baseline pin 1 lần)
+PSL_BASKET_USD: Final[float] = 6.48           # P2-H: cầu chì RỔ (net ≤ −6.48) đặt ĐẦU _manage_hedge_basket, mọi trạng thái
+                                              # (NAKED/LOCKED; UNWOUND đã XÓA theo UNWOUND-PAIR 15/10) — chặn slippage khóa bất thường
+HEDGE_WALL_PAD_PTS: Final[float] = 0.3        # P2-H (Red Team F1-Dir): đệm an toàn — cản phải nằm cách giá tham chiếu >= 0.3pts
+                                              # về phía phòng thủ, không kích hoạt PRUNE_BREAK ngay giây khóa (bệnh 4s rổ #1)
+HEDGE_RECOVERY_PTS: Final[float] = 1.0        # P2-H: giá QUAY ĐẦU thuận root ≥ 1.0pts (pnl_root ≥ +1.0) → PRUNE_RECOVERY
+                                              # đóng cả cặp — xóa điểm mù kịch bản 2 (rổ #3/#4 01:08 kẹt 102′, B1/B3/B4 07:06-07:15)
+REGISTRY_PRUNE_GRACE_SEC: Final[int] = 45     # P2-H M1: prune-guard — record registry chỉ xóa khi root vắng ≥ 45s (grace),
+                                              # và KHÔNG BAO GIỜ wipe khi open_pos rỗng đột ngột (RPC stall)
 HEDGE_ALLOW_SCALE_IN: Final[bool] = False      # Tắt nhồi lệnh mặc định để bảo toàn vốn tối đa
 MIN_ROOT_STEP_PTS: Final[float] = 0.35         # P2-Tuned: chỉ chặn trùng giá sát < 0.35pt (các ROOT CÙNG CHIỀU), không chặn lệnh rải theo sóng
 MIN_ROOT_GAP_SEC: Final[int] = 5               # P2-Tuned: giãn cách tối thiểu 5s giữa 2 ROOT cùng chiều (chống bắn trùng trong vài giây)

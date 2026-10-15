@@ -53,6 +53,16 @@ class ScalpExecutor:
             return "S"
         return None
 
+    @staticmethod
+    def _tag(p: dict) -> dict:
+        """P2-H M1: đọc broker comment (enter() ghi "SCALP5-HEDGE:<root_id>" cho chân HEDGE ·
+        "SCALP5" cho root) → tag parent_id/leg_type chính xác. Vd cũ không-id (trước patch)
+        → parent_id="" (strategy: root-mất → ORPHAN_CLEANUP · registry/snapshot ghếp lại)."""
+        comment = str(p.get("comment") or "")
+        if comment.startswith("SCALP5-HEDGE"):
+            return {"leg_type": "HEDGE", "parent_id": comment.split(":", 1)[1] if ":" in comment else ""}
+        return {}
+
     async def adopt(self) -> None:
         """Recover vị thế MỘC này (magic) sau restart — TP vẫn nằm ở broker."""
         self.positions = []
@@ -66,13 +76,15 @@ class ScalpExecutor:
             entry = float(p.get("openPrice", 0) or 0)
             if not entry:
                 continue
-            self.positions.append({
+            pos = {
                 "id": str(p.get("id")),
                 "side": side,
                 "entry": entry,
                 "entry_ts": self._parse_ts(p.get("openTime") or p.get("time") or p.get("brokerTime")),
                 "anchor": None,   # không biết S anchor sau restart → bỏ điều kiện S_BREAK
-            })
+            }
+            pos.update(self._tag(p))          # P2-H M1: exact-relink (chân HEDGE: parent_id + leg_type)
+            self.positions.append(pos)
         log.info(f"[EXEC] adopt {len(self.positions)} positions (magic={self.cfg.MAGIC})")
 
     async def sync(self) -> None:
@@ -130,7 +142,7 @@ class ScalpExecutor:
             self.positions.append({
                 "id": pid, "side": side, "entry": entry,
                 "entry_ts": self._parse_ts(p.get("openTime") or p.get("time") or p.get("brokerTime")), "anchor": None,
-            })
+            } | self._tag(p))     # P2-H M1: RECOVER cũng exact-relink (chân HEDGE lỡ track)
             log.warning(f"[EXEC] RECOVER {pid} (enter missed tracking) side={side} entry={entry} → manage lại")
 
     # ───────────────────── enter / exit ─────────────────────
@@ -152,12 +164,16 @@ class ScalpExecutor:
         # broker reject "Invalid stops" (4 entry thua @01:05/01:14). last_px=None (boot) → fallback px.
         mkt = getattr(strategy, "last_px", None) or px
         tp = None if is_leg else round(mkt + side * c.TP_POINTS, 2)
+        # P2-H M1: comment broker mang ROOT-ID (chân HEDGE) → adopt() exact-relink sau restart
+        # (hết phụ thuộc heuristic; fallback: "SCALP5-HEDGE" không-id = vị thế cũ → registry/
+        # snapshot vẫn ghép được, khớp root-mất → ORPHAN_CLEANUP tại strategy.decide()).
+        comment = f"SCALP5-HEDGE:{action.get('parent_id', '')}" if is_leg else "SCALP5"
         res = await self.client.create_market_order(
             c.SYMBOL, c.LOT, side,
             stop_loss=None,            # NO-SL (design)
             take_profit=tp,
             magic=c.MAGIC,
-            comment="SCALP5" + ("-HEDGE" if is_leg else ""),
+            comment=comment,
         )
         if not res:
             log.error("[EXEC] create_market_order → no response (thất bại, không retry)")

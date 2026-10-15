@@ -735,7 +735,9 @@ class ScalpStrategy:
         brk = getattr(c, "HEDGE_BREAK_PTS", 1.0)
 
         def _emit() -> None:
-            """Mirror state rổ → registry persistence (lúc root chưa đóng; decide() prune khi root mất)."""
+            """Mirror state rổ → registry persistence (lúc root chưa đóng; decide() prune khi root mất).
+            P2-H M1: +seen_ts (root CÒN TRÊN SÀN) — prune-guard dùng grace, chống wipe khi root
+            chỉ "vô hình do RPC stall" (chuỗi sự cố 02:25→02:50: registry rỗng → 8 exit rời rạc)."""
             self.hedge_baskets[root_id] = dict(
                 wall_px=p.get("wall_px"),
                 wall_peak_px=p.get("wall_peak_px"),
@@ -743,6 +745,7 @@ class ScalpStrategy:
                 unwound=p.get("unwound") is True,
                 hedge_credit=float(p.get("hedge_credit", 0.0)),
                 net_peak_usd=float(p.get("net_peak_usd", 0.0)),   # P2-Tuned: peak net rổ (UNWIND_BREAKEVEN guard)
+                seen_ts=self.now_ts,
             )
 
         # ── NAKED: chưa khóa, chưa gỡ khóa → mở chân đối ứng khi lỗ chạm ngưỡng ──
@@ -983,12 +986,18 @@ class ScalpStrategy:
         if self._df_last_min != _df_min:
             self._df_last_min = _df_min
             self._df_update_counts(open_pos)
+        live_root_ids = {q["id"] for q in open_pos if not q.get("parent_id")}   # P2-H M1: orphan-check
         for p in open_pos:
             # S4-HEDGE: chân HEDGE (parent_id ≠ ∅) — quản lý bởi _manage_hedge_basket của ROOT
             # (skip vòng EXIT đơn lệnh). Khi ROL kích hoạt → đóng TOÀN BỘ (ROOT + HEDGE, reason="ROL").
             if p.get("parent_id"):
                 if rol:
                     acts.append({"kind": "EXIT", "pos_id": p["id"], "reason": "ROL", "px": self.last_px})
+                elif open_pos and p["parent_id"] not in live_root_ids:
+                    # P2-H M1: chân HEDGE MỒ CÔI (root đã đóng thật trên sàn — vd EXIT_SYNC/PSL
+                    # ratchet) → close ngay tick đầu, không chờ máy rổ (rổ không còn "khóa 2 đầu").
+                    # Guard `open_pos`: list trống đột ngột (RPC stall) → KHÔNG kết luận mồ côi.
+                    acts.append({"kind": "EXIT", "pos_id": p["id"], "reason": "ORPHAN_CLEANUP", "px": self.last_px})
                 continue
             pnl_pts = (self.last_px - p["entry"]) if p["side"] == "L" else (p["entry"] - self.last_px)
             is_r = p.get("r1r2")        # S3-B: R1/R2 → exit 4-lớp (TP/PSL/ROL/DRIFT-FLIP, KHÔNG TIME)
@@ -1078,10 +1087,16 @@ class ScalpStrategy:
             if pid not in live_ids:
                 del self.peak_fav[pid]
         # S4: prune mirror rổ (root đã đóng cuối tick → registry sạch trước save_state)
-        if getattr(c, "HEDGE_ENABLE", False):
-            live_roots = {q["id"] for q in open_pos if not q.get("parent_id")}
-            for k in [k for k in self.hedge_baskets if k not in live_roots]:
-                del self.hedge_baskets[k]
+        # P2-H M1 prune-guard: (1) open_pos RỖNG = RPC stall/sudden-empty → GIỮ registry (không wipe,
+        # chống chuỗi sự cố 02:25→02:50: registry rỗng → 8 exit rời rạc +$32/−$35);
+        # (2) root mất + seen_ts < grace (45s) → GIỮ (root vừa biến mất, chưa xác nhận đóng thật);
+        # (3) root mất + seen_ts ≥ grace → XÓA.
+        if getattr(c, "HEDGE_ENABLE", False) and open_pos:
+            _grace = getattr(c, "REGISTRY_PRUNE_GRACE_SEC", 45)
+            for k in [k for k in self.hedge_baskets if k not in live_root_ids]:
+                _rec = self.hedge_baskets[k]
+                if (self.now_ts - int(_rec.get("seen_ts") or 0)) >= _grace:
+                    del self.hedge_baskets[k]
         return acts
 
     def tp_plan(self, open_pos: List[dict]) -> Dict[str, Optional[float]]:
