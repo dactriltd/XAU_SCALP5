@@ -146,11 +146,52 @@ WS-6 (F3-audit, optional) ──► gộp vào cycle bất kỳ
 - Rủi ro provider (MetaApi flapping, 6+ episode/ngày) **không được vá bởi bất kỳ WS nào** — M1/M2 chỉ giảm thiệt hại; root-cause nằm phía cloud (ticket support vẫn open theo docs).
 - **Quyết định thuộc về HUMAN**: (i) A hay B (ii) duyệt re-baseline pin (iii) duyệt merge từng cycle. Agent KHÔNG tự chuyển state nào trong 3 điểm này.
 
+## §7. KIỂM ĐỊNH 4 QUY TẮC (PROPOSAL "ĐÓNG HEDGE TỐI ƯU") + PHƯƠNG ÁN TỐI ƯU TÍCH HỢP — DỮ LIỆU LIVE ĐẾN 07:53
+
+> Nguồn bổ sung 07:5x: `logs/scalp5.status.json` (open 8 vị thế, px 4141.288 @07:49) · `data/scalp5.db` (13 legs · 67 entries ngày) · `logs/scalp5.out` (rổ B1-B4 khóa 07:06-07:15, rổ B2 root thoát TP-ratchet +$45.1 @07:52:43).
+
+### 7.1. So sánh "hedge quá nhiều" — dữ liệu bot đang chạy (2 phiên, cùng code)
+| Metric | Phiên cũ 01:04-04:44 | Phiên mới 04:45-07:53 | Kết luận |
+|---|---|---|---|
+| Entries | 35 (26 root + 9 legs, legs 25.8%) | 25 entries @07:03-07:15 (4 legs, 16%) | 15/10 tổng: **67 entries · 13 legs (19.4%) · 24% roots (13/54) kích hoạt hedge** |
+| Chi phí rổ | −$31.97 (−$3.55/rổ) | 4 rổ mới khóa 07:06-07:15, **chưa chốt** | Hedge là dòng chi duy nhất; lãi thuần từ TP/SYNC (+$216.27) |
+| Slot tê liệt | open=8 @02:15, rổ #3/#4/#5/#6 kẹt 36-102′ giữa sóng +15pts | **TÁI DIỄN NGUYÊN XI: open=8 @07:49** (25′), px đã +23pts thuận Root mà rổ B1/B3/B4 vẫn khóa | Kịch bản 2 (mù hướng thoát) là bệnh **mặc định** của máy LOCKED, không phải sự cố |
+| PnL exits | net ≈ +$80.86 (TP +165.74 · SYNC +47.48 · TAKE +3.05 · PSL −114.45 · PRUNE −18.97 · ROL −3.99) | day$ (RAM) = +56.74 +45.1 (trộn) | Ngày dương nhưng PSL −$114 = **M1 mass-exit −$35×4 là lỗ lớn nhất ngày** |
+
+**Chứng cớ quyết định (live):** rổ B1 (L@4118.277 + S@4116.442, khóa 07:06) · B3 (L@4130.0 + S@4128.301, 07:15) · B4 (L@4129.69 + S@4128.192, 07:15): px=4141.288 → Root lãi +21…+23pts nhưng máy LOCKED **không có nhánh RECOVERY** → cặp vẫn chiếm 6 slot @07:49 (chỉ thoát khi span/ROL/PSL). Rổ B2: Root thoát TP-ratchet +$45.1 (07:52), Leg S@4117.023 đang −24pts, net −$3.4 (breaker −6.48 chặn tail khi px≥4142.8 — px 07:44 đã ở 4142.9, may chưa fire).
+
+### 7.2. Phán quyết 4 quy tắc (bằng số 15/10 + counterfactual)
+| Quy tắc | Phán quyết | Lý do định lượng |
+|---|---|---|
+| **R1.1 F1-Live** (filter cản `w ≤ leg_entry−0.3` / `w ≥ leg_entry+0.3`) | ✅ **CHẤP NHẬN, 1 lưu ý implement** | Tại nhánh NAKED, leg CHƯA tồn tại (wall tìm L751-754 trước khi mở leg) → phải filter theo **px ± 0.3** (px ≈ giá khớp leg); chỉ khi re-search ở L769-771 (LOCKED) mới dùng `leg.entry`. Toán Red Team §1 giữ nguyên (giết PRUNE-INSTANT rổ #1) |
+| **R1.2 PRUNE_RECOVERY** (px ≥ root_entry+1.0 (L) / ≤ −1.0 (S) → đóng cả cặp) | ✅ **CHẤP NHẬN — rule hiệu quả nhất cho "hedge quá nhiều"** | Counterfactual 15/10: rổ #3/#4 frees 01:12-14 (thay 02:50) · #5 01:55 · #6 ~02:20; phiên mới: B1 ~07:07 · B3/B4 ~07:15 (thay đang kẹt 07:49). PnL rổ = frozen (không đổi) → **thuần lợi = slot sớm đầu trend**. Note: lợi ích = +$3/scalp × N (ước +$9-15/burst), KHÔNG phải "ăn trọn 18pts" (bot là scalper TP 1.5pts, không follow trend) |
+| **R2a CYCLE_MODE_FLUSH** (LOCKED ≥3′ + mode BUY/SELL → đóng) | ❌ **TỪ CHOI** | Mode flip 1-5′ (07:39 SELL → 07:44 BUY → 07:49 None = 3 flip/10′) → đóng theo noise; và với rổ L-root, mode=SELL = giá về phía cản = **tước trước upside HEDGE_TAKE** (chính là upside D2 giữ). Redundant: RECOVERY (level) + O1-15′ (time) đã phủ mọi trường hợp |
+| **R2b SLOT_EVICTION** (FIFO khi chạm cap) | ❌ **TỪ CHOI** (P3 optional) | Sau O1-15′ + RECOVERY: mọi episode cap 15/10 tự giải trong ≤15′; eviction chỉ thêm 1 đường thoát không-deterministic với PnL frozen như nhau |
+| **R3 UNWOUND-PAIR** (bỏ solo HEDGE_TAKE: đóng cả cặp khi đủ điều kiện take) | ✅ **CHẤP NHẬN — thay cả 2 phương án R3 gốc** | Rổ #2: actual −$5.75 → pair-close tại take px = frozen **−$2.51 (giữ $3.24)**; option UNWIND_SL-0.4 = −$3.31 (tệ hơn + thêm 1 state). Bỏ hẳn nhánh UNWOUND → xóa PSL-UNWOUND/BASKET_TP/UNWIND_BREAKEVEN (~40 dòng dead) · máy co lại NAKED→LOCKED · B2 live đang được ratchet cứu (+$45.1, net −$3.4) = bằng chứng pair-close không thiệt |
+| **R4 O1-Pro + M1 adopt-pairing** | ✅ **CHẤP NHẬN** (đã verify §1/§3) | Floor −6.48 + timeout 15′ (wall=None) + breaker đầu hàm · comment broker exact-relink |
+
+### 7.3. PHƯƠNG ÁN TỐI ƯU TÍCH HỢP — "P2-H" (6 patch, loại 5 đề xuất khác)
+| Stt | Patch | File/vị trí | Counterfactual 15/10 |
+|---|---|---|---|
+| 1 | **M2** restore day$ từ exit_log | `scalp_executor.py` L23/L280 | fuse $30 sống qua restart |
+| 2 | **M1** prune-guard + comment `SCALP5-HEDGE:<root_id>` + adopt exact-relink (fallback: cặp ngược chiều tp=None) | `scalp_strategy.py` L1080 · `scalp_executor.py` L24/adopt | loại PSL −$114 tail (M1 mass-exit) |
+| 3 | **F1-Dir** filter px±0.3 (NAKED) / leg_entry±0.3 (re-search) | `scalp_strategy.py` L692-714 | 0 PRUNE-INSTANT |
+| 4 | **O1-Pro** PSL_BASKET_USD=6.48 top + floor −6.48 + HEDGE_TIMEOUT: 15′ wall=None / 30′ có wall | `config.py` · L716+ | worst rổ ≤ −6.48 · slot ≤ 15′ |
+| 5 | **RECOVERY + PAIR** (quy tắc 1.2 + 3): exit mới `PRUNE_RECOVERY` ở nhánh LOCKED · HEDGE_TAKE → đóng cả cặp · bỏ nhánh UNWOUND | `scalp_strategy.py` L748-844 | frees slot đầu trend (B1 07:07, #3/#4 01:14) · rổ #2 −$5.75→−$2.51 |
+| 6 | **M3** gate execute-time + hủy arm cùng chiều <0.35pts sau mỗi fill | `scalp_strategy.py` L683-689 · `main.py` L587-594 | 07:05:01 (8 fills/giây, 0.43pts) → ≤1-2 |
+| **Từ chối** | CYCLE_MODE_FLUSH · SLOT_EVICTION · UNWIND_SL-0.4 · F1 `abs(w−entry)` · F3 blocking-poll | — | §7.2 |
+
+**Kỳ vọng P2-H (15/10 counterfactual, đo bằng exit_log sau deploy):** chi phí rổ −$31.97 → ≈ −$23…−27 · slot-min rổ ≈ 742 → ≈ 250 · PRUNE-INSTANT = 0 · worst rổ ≤ −6.48 · 0 episode cap-giữa-trend · 0 fill-burst 2+ trong 5s/0.35pts.
+**Thứ tự cycle:** C1 (M2) → C2 (M1) → C3 (F1-Dir + O1-Pro + RECOVERY + PAIR, 1 lần re-baseline pin) → C4 (M3). Mỗi cycle gate như §3.
+
 ## PHỤ LỤC — Tái tạo bằng chứng
 ```bash
 cd /Users/admin/Desktop/DESIGN/XAU_SCALP5
 sqlite3 "file:data/scalp5.db?mode=ro" "SELECT datetime(ts,'unixepoch','+7 hours'),reason,pnl FROM exit_log WHERE ts>1791993000;" 
 grep -nE "re-attach|adopt" logs/scalp5.out | awk -F'2026-10-15 ' '{split($2,a,","); if (a[1]>="02:45:00"&&a[1]<="02:55:00") print}'
 grep -n "del self.hedge_baskets\|BASKET_TIME_MAX_LOSS\|DAILY_LOSS_STOP" src/scalp_strategy.py src/scalp_executor.py src/config.py
+# §7 (07:5x): cấu trúc open + legs phiên mới (rổ B1-B4 khóa 07:06-07:15, px 4141.288)
+cat logs/scalp5.status.json | python3 -c "import json,sys; [print(p) for p in json.load(sys.stdin)['open']]"
+sqlite3 "file:data/scalp5.db?mode=ro" "SELECT datetime(ts,'unixepoch','+7 hours'),pos_id,kind,round(entry,3) FROM entry_log WHERE ts>=1792013000;"
 ```
-File: `docs/REVIEW-REDTEAM-1510-PLAN.md` · v1.0 (15/10 06:3x+07) · chưa code (theo lệnh HUMAN).
+File: `docs/REVIEW-REDTEAM-1510-PLAN.md` · v1.1 (15/10 07:5x+07: thêm §7 kiểm định 4-rule + P2-H) · chưa code (theo lệnh HUMAN).
