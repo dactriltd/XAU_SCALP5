@@ -88,6 +88,7 @@ class ScalpStrategy:
         # S4-HEDGE (15/10): registry rổ hedge (root_id → {wall_px, wall_peak_px, leg_ids, unwound, hedge_credit})
         # — shadow state persistence cho metadata position (main re-attach sau adopt() StreamStalled restart)
         self.hedge_baskets: Dict[str, dict] = {}
+        self._tick_fills: List[tuple] = []      # P2-H M3: root fills TRONG tick (side, px) — gate in-tick, reset mỗi decide()
         # TF S-ladder: "M5" (gốc) | "M1" (CHAIRMAN 13-10 tối — scale 1/5, xem S1_* config)
         self.ladder_tf: str = getattr(cfg, "LADDER_TF", "M5")
         if self.ladder_tf == "M1":
@@ -689,6 +690,24 @@ class ScalpStrategy:
                 return False                    # chặn triệt để lỗi 2 lệnh cách 0.01–0.35pts
         return True
 
+    def _gate_root_pos(self, open_pos: list) -> list:
+        """P2-H M3: open_pos + root fills ĐÃ XẢY RA TRONG TICK NÀY (chưa kịp vào broker open_pos).
+        Sự cố 07:05:01 15/10: 8 lệnh MUA khớp/1s (span 0.43pts) — gate cũ so open_pos TICK TRƯỚC
+        nên cả 8 lệnh cùng vượt gate trong 1 decide(). Fill synthetic có entry_ts=now_ts →
+        gate chặn fill thứ 2 cùng chiều (gap 0s < MIN_ROOT_GAP_SEC=5)."""
+        if not self._tick_fills:
+            return open_pos
+        extra = [{"side": s, "entry": fpx, "entry_ts": self.now_ts} for s, fpx in self._tick_fills]
+        return open_pos + extra
+
+    def _record_root_fill(self, side: str, px: float) -> None:
+        """P2-H M3: ghi nhận fill root + hủy R-arm CÙNG CHIỀU nằm trong MIN_ROOT_STEP_PTS
+        của fill vừa khớp (chống burst tiếp tục các tick kế khi giá chạm cả cụm limit)."""
+        self._tick_fills.append((side, px))
+        step = getattr(self.cfg, "MIN_ROOT_STEP_PTS", 0.35)
+        self.r1r2_arms = [a for a in self.r1r2_arms
+                          if not (a["side"] == side and abs(a["px"] - px) < step)]
+
     def _find_structural_wall(self, root_pos: dict, ref: Optional[float] = None) -> Optional[float]:
         """S4-HEDGE: tìm cản cấu trúc cho lệnh gốc (S → mức H PHÍA TRÊN · L → mức L PHÍA DƯỚI).
         Nguồn (live, không lookahead): lvl strong_zones (confirmed·alive) + levels strategy
@@ -866,6 +885,7 @@ class ScalpStrategy:
         acts: List[dict] = []
         now = self.now_ts
         n_open = len(open_pos)
+        self._tick_fills = []                     # P2-H M3: fills trong tick hiện tại (reset mỗi decide)
         # ENTRY — branch theo cfg.MODE (mặc định B_SNEO):
         #   MOM1 (CHAIRMAN 13-10 18:xx): net px vs K M1 close ≥ +THR = MUA · ≤ −THR = BÁN, 1 lệnh/nến
         #   B_SNEO (13-10 tối): TRIGGER B trên S-ladder (S-chạm + bounce ≥$S_BOUNCE_PTS)
@@ -891,7 +911,7 @@ class ScalpStrategy:
                         # (spec: "unmet → do not enter, arm stays alive — EDGE waits next tick, pc intact")
                         if self._g2_block("S" if s_side == "S" else "B"):
                             pass
-                        elif not self._can_open_new_root(s_side, open_pos):
+                        elif not self._can_open_new_root(s_side, self._gate_root_pos(open_pos)):
                             pass            # S4 ORCHESTRATOR: chặn lệnh gốc (chưa thỏa gap/step/root-cap) — arm giữ (không burn slot)
                         else:
                             self.mom_last_candle_min = cur_min
@@ -902,10 +922,11 @@ class ScalpStrategy:
                                 "px": self.last_px, "anchor": 0.0,
                                 "level_ts": now, "touch": c.MOM_K_BARS, "drift5m": round(mom, 3),
                             })
+                            self._record_root_fill(s_side, self.last_px)   # P2-H M3: in-tick gate + hủy arm cùng chiều
                 else:
                     mom = self.mom_net()
                     pc_limit = getattr(c, "MOM_MAX_PER_CANDLE", 1)
-                    if mom >= c.MOM_THR_PTS and self.mom_fire_count < pc_limit and self._can_open_new_root("L", open_pos):
+                    if mom >= c.MOM_THR_PTS and self.mom_fire_count < pc_limit and self._can_open_new_root("L", self._gate_root_pos(open_pos)):
                         if self._g2_block("B"):      # S3-B G2-A (v0 entry B bị chặn tại H-zone/EXT15)
                             pass
                         else:
@@ -915,7 +936,8 @@ class ScalpStrategy:
                                 "kind": "ENTER_LONG", "px": self.last_px, "anchor": 0.0,
                                 "level_ts": now, "touch": c.MOM_K_BARS, "drift5m": round(mom, 3),
                             })
-                    elif mom <= -c.MOM_THR_PTS and self.mom_fire_count < pc_limit and self._can_open_new_root("S", open_pos):
+                            self._record_root_fill("L", self.last_px)   # P2-H M3: in-tick gate + hủy arm cùng chiều
+                    elif mom <= -c.MOM_THR_PTS and self.mom_fire_count < pc_limit and self._can_open_new_root("S", self._gate_root_pos(open_pos)):
                         if self._g2_block("S"):      # S3-B G2-A (v0 entry S bị chặn tại L-zone/EXT15)
                             pass
                         else:
@@ -925,6 +947,7 @@ class ScalpStrategy:
                                 "kind": "ENTER_SHORT", "px": self.last_px, "anchor": 0.0,
                                 "level_ts": now, "touch": c.MOM_K_BARS, "drift5m": round(mom, 3),
                             })
+                            self._record_root_fill("S", self.last_px)   # P2-H M3: in-tick gate + hủy arm cùng chiều
             else:
                 # ── B_SNEO (bản 13-10 tối): trigger B trên S-ladder (giữ nguyên, fallback) ──
                 acted = False
@@ -935,13 +958,14 @@ class ScalpStrategy:
                     ):
                         if self._g2_block("B"):       # S3-B G2-A (fallback B_SNEO cũng gate)
                             break
-                        if not self._can_open_new_root("L", open_pos):
+                        if not self._can_open_new_root("L", self._gate_root_pos(open_pos)):
                             break            # S4 ORCHESTRATOR: chặn lệnh gốc — không consumed, chờ cơ hội khác
                         x.consumed = True
                         acts.append({
                             "kind": "ENTER_LONG", "px": self.last_px, "anchor": x.px,
                             "level_ts": x.ts, "touch": x.touches, "drift5m": self.drift5m(),
                         })
+                        self._record_root_fill("L", self.last_px)   # P2-H M3: in-tick gate + hủy arm cùng chiều
                         acted = True
                         break
                 if not acted:
@@ -952,13 +976,14 @@ class ScalpStrategy:
                         ):
                             if self._g2_block("S"):
                                 break
-                            if not self._can_open_new_root("S", open_pos):
+                            if not self._can_open_new_root("S", self._gate_root_pos(open_pos)):
                                 break            # S4 ORCHESTRATOR: chặn lệnh gốc — không consumed, chờ cơ hội khác
                             x.consumed = True
                             acts.append({
                                 "kind": "ENTER_SHORT", "px": self.last_px, "anchor": x.px,
                                 "level_ts": x.ts, "touch": x.touches, "drift5m": self.drift5m(),
                             })
+                            self._record_root_fill("S", self.last_px)   # P2-H M3: in-tick gate + hủy arm cùng chiều
                             break
         # S3-B: R1/R2 STALL-FADE — FILL limit arm (tick proxy: giá chạm limit · cap K_CONTEXT
         # chung với v0 · không fill khi đã ROL · window check như v0). main đánh dấu r1r2=True
@@ -967,12 +992,15 @@ class ScalpStrategy:
                 and self.in_window(now, windows) and not self.in_rollover(now, rol_min)):
             for arm in list(self.r1r2_arms):
                 if now >= arm["until"] or arm["key"] in self.r1r2_done:
-                    self.r1r2_arms.remove(arm)
+                    if arm in self.r1r2_arms:
+                        self.r1r2_arms.remove(arm)   # P2-H M3: guard — arm có thể đã bị _record_root_fill hủy
                     continue
                 hit = (self.last_px <= arm["px"]) if arm["side"] == "S" else (self.last_px >= arm["px"])
                 # S4: R1/R2 = lệnh ROOT → gate ORCHESTRATOR (baseline HEDGE_ENABLE=False
                 # ≡ n_open < K_CONTEXT — regression giữ nguyên; True = MAX_ROOT/gap/step + chừa slot HEDGE)
-                if hit and self._can_open_new_root("S" if arm["side"] == "S" else "L", open_pos):
+                # P2-H M3: gate cả fills TRONG TICK (chống burst 8 lệnh/1s 07:05 15/10) + hủy
+                # arm cùng chiều < MIN_ROOT_STEP_PTS sau mỗi fill.
+                if hit and self._can_open_new_root("S" if arm["side"] == "S" else "L", self._gate_root_pos(open_pos)):
                     self.r1r2_arms.remove(arm)
                     self.r1r2_done.add(arm["key"])   # row 18: 1 lệnh/zone/ngày/hướng (live strict)
                     acts.append({
@@ -981,6 +1009,7 @@ class ScalpStrategy:
                         "level_ts": arm["ts"], "touch": arm.get("touches", 0), "drift5m": 0.0,
                         "arm": arm["key"][0], "regime": arm.get("regime", ""),
                     })
+                    self._record_root_fill("S" if arm["side"] == "S" else "L", arm["px"])   # P2-H M3
         # EXIT LADDER
         #   B_SNEO: TP | DRIFT-flip (P&L<0) | S_BREAK | TIME15 | ROL
         #   MOM1 (CHAIRMAN 19:xx "KHÔNG TỈA LỆNH KHI PNL ÂM → CHỜ GIÁ QUAY LẠI" + "LỆNH CHẠY CÙNG GIÁ"):
