@@ -172,3 +172,14 @@ MIN_ROOT_GAP_SEC: Final[int] = 5               # P2-Tuned: giãn cách tối thi
 MAX_ROOT_POSITIONS: Final[int] = 4            # P2-Tuned: 4 lệnh gốc đồng thời (= công suất V2); chân HEDGE dùng slot riêng trong K_CONTEXT=8
 # P2-Tuned: per-position hedge — root nào âm tự cặp chân HEDGE riêng (parent_id); KHÔNG khóa toàn cục;
 # root UNWOUND (chân đã chốt) vẫn cho các root khác mở lệnh mới (slot gốc còn trống = tự do bắt sóng).
+# ── P2-H3 C8-Unified LIVE GATE (15/10 11:0x HUMAN-approved · docs/P2-H3-IMPULSE-SPAN-RESEARCH-1510.md §4.5) ──
+# 4 hàng rào vật lý dựa VỊ THẾ ĐANG MỞ, mọi root cùng chiều (mọi M0, KHÔNG filter IMPULSE — verify 15/10:
+# chặn đúng cả rổ CREEP 10:00/10:25). G1/G2 = mở rộng MIN_ROOT_STEP qua limit-fill/cross-tick (lỗ hổng M3
+# "quên 0.35 sau 5s") · G3 = O2 live-anchor (span NAKED-live > ⅔×TP) · G4 = cấm nhồi khi root gần nhất đã
+# âm sâu (cách vạch lock −1.2 chỉ 0.3) · G5 = đóng băng 30s sau khi leg HEDGE nào đó mở (whipsaw 2 đầu).
+# Counterfactual 15/10 (08:41:20→10:09:17): chặn 7/7 rổ lỗ (−22.25$) · 0 TP-loss · Δ +22.25.
+C8_ENABLE: Final[bool] = True                # 1 dòng revert TOÀN BỘ C8 (KHÔNG cần redeploy lần 2)
+MAX_IMPULSE_SPAN_PTS: Final[float] = 1.00    # G3: chặn khi max-span NAKED-live cùng chiều > +1.00pts (= ⅔×TP=1.5)
+MIN_PULLBACK_STEP_PTS: Final[float] = 0.25   # G2: pullback/trùng giá CHẶN khi −0.25 < Δ ≤ 0 (giữ lệnh ≤ −0.25pts = bắt nhịp lùi)
+MAX_ADVERSE_STACK_PTS: Final[float] = 0.90   # G4: CHẶN khi Δ root-gần-nhất < −0.90pts (sắp chạm HEDGE_LOCK −1.2)
+POST_HEDGE_COOLDOWN_SEC: Final[float] = 30.0 # G5: đóng băng root mới 30s kể từ leg HEDGE gần nhất (verify: chặn Case D 13s / B_0844 25s)
