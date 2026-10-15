@@ -24,6 +24,12 @@ class ScalpExecutor:
         self.halted = False
         # S2: vị thế branch (b) sync() phát hiện broker-đã-đóng (TP fill) → main ghi exit_log
         self.synced_exits: List[Dict] = []
+        # P2-H2 C5/X1 (15/10 HUMAN-approved): exit-grace 20s — sau khi strategy DECIDE EXIT (PRUNE_RECOVERY
+        # pair-close v.v.), broker close async 1-3s: sync() vẫn thấy leg cũ trong get_positions() →
+        # RECOVER re-add → tick kế tiếp ORPHAN_CLEANUP re-close → "Position not found" (ghost ×3 08:44-08:50
+        # + X1 finding). Grace: pid vừa exit() trong <20s → RECOVER skip. exit_log KHÔNG bị nhiễm
+        # (verify 15/10: 69 rows = 69 positions 1:1 — write_exit chỉ ghi khi close thật).
+        self._exited_recent: Dict[str, float] = {}
 
     # ───────────────────── position helpers ─────────────────────
     def _mine(self, p: dict) -> bool:
@@ -96,6 +102,8 @@ class ScalpExecutor:
         for p in await self.client.get_positions() or []:
             if isinstance(p, dict) and self._mine(p):
                 found[str(p.get("id"))] = p
+        # P2-H2 C5/X1: tự dọn exit-grace dict (giữ 2 phút, đủ cover 20s grace + RPC latency)
+        self._exited_recent = {k: v for k, v in self._exited_recent.items() if time.time() - v < 120}
         # (b) — S4 F1 FIX (EXIT_SYNC ≈ −$3.00$ cũ):
         # (1) ƯU TIÊN deal THẬT từ get_history_deals (position OUT: profit real broker trả)
         # (2) fallback công thức: TP-fill trên sàn → PnL ƯỚC LƯỢNG LUÔN DƯƠNG
@@ -131,6 +139,12 @@ class ScalpExecutor:
         known = {x["id"] for x in self.positions}
         for pid, p in found.items():
             if pid in known:
+                continue
+            # P2-H2 C5/X1: exit-grace — pid vừa bị strategy EXIT trong <20s (broker close
+            # async) → KHÔNG re-add (chặn ghost ORPHAN_CLEANUP re-close "Position not found").
+            t_out = self._exited_recent.get(pid)
+            if t_out is not None and time.time() - t_out < 20:
+                log.info(f"[EXEC] RECOVER {pid} skip (exit-grace: EXIT {time.time()-t_out:.0f}s trước, broker close async)")
                 continue
             side = self._pos_side(p)
             if side is None:
@@ -250,6 +264,7 @@ class ScalpExecutor:
             s = 1 if pos["side"] == "L" else -1
             pnl = s * (px - pos["entry"]) * self.oz
         res = await self.client.close_position(pos_id)
+        self._exited_recent[pos_id] = time.time()   # P2-H2 C5/X1: exit-grace 20s (sync RECOVER skip)
         ok = bool(res)
         if not ok:
             # close fail → kiểm tra lại: pos CÒN ở broker không? (TP có thể vừa fill

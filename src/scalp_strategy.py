@@ -1032,10 +1032,13 @@ class ScalpStrategy:
         for p in open_pos:
             # S4-HEDGE: chân HEDGE (parent_id ≠ ∅) — quản lý bởi _manage_hedge_basket của ROOT
             # (skip vòng EXIT đơn lệnh). Khi ROL kích hoạt → đóng TOÀN BỘ (ROOT + HEDGE, reason="ROL").
-            if p.get("parent_id"):
+            # P2-H2 C5/X2: branch theo leg_type (KHÔNG CHỈ parent_id) — chân HEDGE comment-cũ
+            # (adopt "SCALP5-HEDGE" không-id → parent_id="" falsy) trước đây rơi LẪN vào solo machine;
+            # giờ chúng cũng ra ORPHAN_CLEANUP tick-đầu (row L1038: "" not in live_root_ids → orphan).
+            if p.get("parent_id") or p.get("leg_type") == "HEDGE":
                 if rol:
                     acts.append({"kind": "EXIT", "pos_id": p["id"], "reason": "ROL", "px": self.last_px})
-                elif open_pos and p["parent_id"] not in live_root_ids:
+                elif open_pos and (p.get("parent_id") or "") not in live_root_ids:
                     # P2-H M1: chân HEDGE MỒ CÔI (root đã đóng thật trên sàn — vd EXIT_SYNC/PSL
                     # ratchet) → close ngay tick đầu, không chờ máy rổ (rổ không còn "khóa 2 đầu").
                     # Guard `open_pos`: list trống đột ngột (RPC stall) → KHÔNG kết luận mồ côi.

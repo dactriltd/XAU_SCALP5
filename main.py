@@ -60,18 +60,51 @@ class StreamStalled(Exception):
 
 def setup_logging() -> None:
     os.makedirs("logs", exist_ok=True)
+    # P2-H2 LOGSPLIT (15/10 HUMAN-approved): retention — dọn log daily >14 ngày lúc boot
+    # (không cần cron/launchd; file hiện: logs/scalp5.log + boot .out cũ giữ nguyên, chỉ dọn _scalp5.*)
+    for f in os.listdir("logs"):
+        if f.endswith(("_scalp5.log", "_scalp5.out")):
+            fp = os.path.join("logs", f)
+            try:
+                if time.time() - os.path.getmtime(fp) > 14 * 86400:
+                    os.remove(fp)
+            except OSError:
+                pass
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
         handlers=[
             logging.StreamHandler(),
-            logging.FileHandler("logs/scalp5.log"),
+            DailyUTCFileHandler(),
         ],
     )
     # 13-10 19:xx: socketio/engineio log mỗi keepalive/tick → scalp5.out phình 4.5GB/2h
     for noisy in ("metaapi_cloud_sdk", "aiosqlite", "httpx", "urllib3",
                   "socketio", "engineio", "websockets", "apscheduler"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
+
+
+class DailyUTCFileHandler(logging.FileHandler):
+    """P2-H2 LOGSPLIT (15/10 HUMAN-approved): tách log theo NGÀY UTC — logs/YYYY-MM-DD_scalp5.log.
+    Rotate IN-PROCESS khi record.created qua 00:00Z (zero-downtime, không cần restart/cron).
+    Chia theo UTC (KHÔNG +07): M2 day$ restore SUM exit_log theo UTC-day + mọi ts DB = unix UTC
+    → 1 file = đúng 1 ngày kế toán PnL (check DAILY cap chỉ đọc 1 file)."""
+
+    PATTERN = "logs/%Y-%m-%d_scalp5.log"
+
+    def __init__(self) -> None:
+        now = datetime.now(timezone.utc)
+        self._date = now.date()
+        super().__init__(now.strftime(self.PATTERN))
+
+    def emit(self, record):
+        d = datetime.fromtimestamp(record.created, tz=timezone.utc).date()
+        if d != self._date:
+            self.close()
+            self._date = d
+            self.baseFilename = datetime(d.year, d.month, d.day).strftime(self.PATTERN)
+            self.stream = self._open()
+        super().emit(record)
 
 
 # ─────────────────────────── telemetry (DB riêng) ───────────────────────────
@@ -684,8 +717,16 @@ def main() -> None:
                 log.warning(f"[SCALP5] STREAM STALLED → tự khởi động lại pipeline trong {backoff}s (vị thế + TP broker-side được giữ, adopt lại khi lên)")
                 time.sleep(backoff)
             except SystemExit as e:
-                log.error(f"[SCALP5] EXIT: {e}")
-                raise
+                # P2-H2 F5 (15/10 HUMAN-approved): init-fail (vd cloud-flap lúc restart pipeline,
+                # evid 06:07→06:24 zombie-shell 16′ + TERM 68966 @08:40 cần KILL 08:42:30) trước đây
+                # = EXIT FATAL. Giờ: backoff-retry như StreamStalled (30s→300s) — vị thế + TP
+                # broker-side được giữ, adopt lại khi pipeline lên.
+                now = time.time()
+                backoff = 30 if not hasattr(main, "_last_fail") or now - main._last_fail > 900 else min(main._backoff * 2, 300)
+                main._backoff = backoff
+                main._last_fail = now
+                log.error(f"[SCALP5] INIT/EXIT SystemExit ({e}) → retry pipeline trong {backoff}s (F5: không chết hẳn)")
+                time.sleep(backoff)
             except KeyboardInterrupt:
                 return
     finally:
