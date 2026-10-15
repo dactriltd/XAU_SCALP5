@@ -1,10 +1,18 @@
 # P2-H3 RESEARCH PLAN — IMPULSE SPAN CAP ("C8: Mua đuổi đỉnh sóng") · NGHIÊN CỨU CHUYÊN SÂU
-> 15/10 10:4x+07 · **L1 PLAN-ONLY: KHÔNG CODE, KHÔNG ĐỤNG BOT ĐANG CHẠY (PID 97539 @09:49:38, chạy đến ROL 21:45Z)**
+> 15/10 10:4x+07 · BẢN GỐC: L1 PLAN-ONLY → CẬP NHẬT 11:0x (§0.1): HUMAN PHÊ DUYỆT C8-Unified — code+unit-test chuẩn bị trong worktree s4-hedge; bot 97539 VẪN CHẠY ĐẾN ROL 21:45Z (hoặc lệnh HUMAN khi open=0, merge+restart 1 lần duy nhất)
 > Áp dụng bộ luật AGENTS.md (Karpathy): First Principles · Minimal Abstractions · Empirical · Baseline-First · Pedagogical
 > Dữ liệu: `data/scalp5.db` (entry_log/exit_log/regime_log, đọc chế độ RO) · `logs/2026-10-15_scalp5.log` · `logs/scalp5_timeline_1510.csv`
 > Nguồn "nội dung áp dụng": phân tích Red Team C8 (HUMAN 10:0x) + live-anchor refinement (Agent 10:1x, STATE §10:1x)
 
 ---
+
+## §0.1 CẬP NHẬT 11:0x — KIỂM ĐỊNH RED TEAM HUMAN (mọi số đã verify độc lập trên DB RO, không nhận theo copy)
+**Verdict: 3/3 claim HUMAN ĐÚNG (với 2 rounding note) → tài liệu này đã đính chính §4/§5.1/§9 theo kết quả kiểm định:**
+1. **Claim 1.1 (live-anchor tại mỗi giây) = VERIFIED 100%**: A1 09:18:27 & B1 09:56:00 & B2 09:57:01 = **0 lệnh L cùng chiều CÒN MỞ** (chùm trước đã TP/EXIT_SYNC từ 09:15:35–09:17:49 / 09:54:31–34) → O2 CHO QUA (giữ TP +3.94/+3.04/+2.99) · A2 span +0.436 qua · A3 **span +1.418 > 1.0 → G3 CHẶN (cứu rổ −2.93)** · B3 span −0.261 qua (TP +3.06). → **O2 thật = chặn 1/6 (chỉ A3), TP loss = $0, Δ +$2.93** — con số "−9.9$" trong bản gốc §4/§5.1/§9 là **LỖI STATIC-ANCHOR của Agent** (tính anchor từ entry đầu chùm như thể vẫn còn mở). Đã bỏ.
+2. **Claim 1.2 (O3 dead code) = VERIFIED (theo đúng nghĩa cluster = open-NAKED + realized của chính nó)**: tại điểm G3 fire, mọi NAKED cùng chiều bên dưới đang dương (unrealized) → `net<0` không thể xảy ra đồng thời với G3 → O3 ⊂ O2 (hoặc trùng, hoặc chết) → **O3 LOẠI** (không còn giá trị độc lập vì O2 đã 0 TP-loss).
+3. **Claim 1.3 (Case D −29.00 = POST-LEG 30s, không phải "ngoài phạm vi") = VERIFIED**: root 4877538554 mở 10:01:01 = **13s sau leg 4877535620 (10:00:48)** → G5 chặn → xóa ind −29.00/net −3.27. §2.4/§4.4 "không option nào chặn được" = **RETRACT** (sai vì chỉ xét span-cùng-chiều, bỏ sót thời điểm sau-leg).
+- **Rounding notes (không đổi kết luận)**: B_0844 thực tế −2.74 (HUMAN −2.73) · B_1009 = −2.74 (HUMAN gán −3.35 = net của rổ B_1034 @10:34).
+- **HƯỚNG DẪN MỚI CỦA HUMAN (áp dụng từ bản này)**: (i) **bỏ bước Replay-12d làm gate + không ép giữ pin 565** — chỉ gate bằng unit-test + KPI thực chiến · (ii) **PHÊ DUYỆT C8-Unified** (O2 + G1/G2/G4/G5) tại `_can_open_new_root` (L665) · (iii) code + unit test **chuẩn bị trong worktree `s4-hedge` ngay**, merge+restart **1 lần duy nhất tại ROL 21:45Z hoặc open=0** · bot 97539 GIỮ NGUYÊN tới lúc đó.
 
 ## §0 BẢNG MAPPING LUẬT → MỤC (đảm bảo mọi luật được áp dụng)
 | Luật | Yêu cầu | Mục trong file này |
@@ -38,7 +46,7 @@
 1. **M0 gate 2 lớp**: `L604` chặn ARM-LVL trong IMPULSE (đúng "không fade ngược sóng"); 6 tick-sites (B1) fire theo kinematics (MOM1/B_SNEO/R-arm) → **vào lệnh thuận sóng vẫn chạy trong IMPULSE** = nguồn "chase-buy". Đây là by-design ("VÀO LỆNH NHIỀU THEO DÒNG CHẢY", north-star 14/10) — C8 chỉ thêm **hàng rào chiều cao**, không tắt B1.
 2. **Vật lý của chase**: sóng IMPULSE speed 1.17–1.36 pts/nến → 3-4 lệnh cùng chiều cách nhau 0.3–0.6pts (đủ > MIN_ROOT_STEP 0.35 L170 để được phép) nhưng lệnh thứ 4+ ở cách 1.0–1.5pts = **vào đúng vùng TP của lệnh đầu** (B2). Khi sóng "nhuộm" (reversal): các lệnh cao cùng ăn reversal cùng lúc → rổ.
 3. **Toán lỗ leg bất diệt** (B3): một rổ RECOVERY net = root(+1.0×$2) + leg(−(1.2+1.0+slip)×$2) ≈ **−2.5..−3.5$/rổ** — là giá của fast-slot engine (giữ slot 1.3–3.0′ thay vì treo 15–30′). C8 không loại được B3 mà **giảm số rổ** (fewer legs opened) → giảm sum(B3).
-4. **Tail ind vs net** (B4): evidence 10:30:43 HEDGE_TAKE_PAIR (root 4877538554 L@4161.534 10:01:01 → exit 4147.033 = −14.5pts = **−$29.00 ind** · leg 4877540882 S@4160.196 → +$25.73 · **net −$3.27 ≤ −6.48 cap ✓**): top-entry cluster CREEP-span 0.73pts (<1.0 → **BẤT KỲ option nào cũng KHÔNG chặn được** — limitation ghi §4.4). C8 đánh giá trên **net cluster + tần suất tail**, không phải cảm giác con số ind.
+4. **Tail ind vs net** (B4): evidence 10:30:43 HEDGE_TAKE_PAIR (root 4877538554 L@4161.534 10:01:01 → exit 4147.033 = −14.5pts = **−$29.00 ind** · leg 4877540882 S@4160.196 → +$25.73 · **net −$3.27 ≤ −6.48 cap ✓**): bản gốc ghi "CREEP-span 0.73pts (<1.0 → BẤT KỲ option nào cũng KHÔNG chặn được)" — **RETRACT (11:0x, verify §0.1-3)**: entry 10:01:01 mở **chỉ 13s sau leg HEDGE 4877535620 (10:00:48)** → **G5 POST_LEG_30S của C8-Unified CHẶN CHÍNH XÁC** → xóa ind −29.00/net −3.27. C8 đánh giá trên **net cluster + tần suất tail**, không phải cảm giác con số ind.
 
 ---
 
@@ -49,9 +57,9 @@
 | Day PnL (exit_log SUM từ 07:00) | **+107.79$ (115 exits)** | khớp in-memory status.json day$=107.79 @10:35:04 ✓ |
 | M2 cross-check (09:49:44) | 46.29 (PRE-P2H, 53 exits) + 36.99 (P2-H, 35 exits) = **83.28 ≈ 83.29 restore ✓** | tuyệt đối (±0.01 rounding) |
 | IMPULSE episodes hôm nay | **16** (regime_log 07:06→10:35; up 8/down 8, speed 0.52–1.44) | query §3.2 |
-| Chase-events (>1.0pt vs anchor cùng chiều trong IMPULSE) | **6** (A:3 · B:3) | bảng 3.2 |
-| C7 CROSS_RESCUE | **0 cặp** (M0 sáng nay đa số IMPULSE → C7 skip đúng thiết kế; replay dự báo ~0.75/ngày) | grep log + exit_log `like 'CROSS%'` |
-| Open positions | **0** @10:35:04 (slot sạch) | status.json |
+| Chase-events (>1.0pt vs live-anchor NAKED, verify §0.1) | **6** (A:3 · B:3) — thực tế CHỈ 1 events vượt gate G3 (A3 +1.418) | bảng §4 |
+| C7 CROSS_RESCUE | **★ 1 CẶP LIVE (10:50:39) = FIRE ĐẦU TIÊN**: pair L@4146.298 (10:48:42 → `CROSS_RESCUE_LOSER` −1.30$ @4145.777) + S@4146.912 (10:49:05 → `CROSS_RESCUE_WIN` +1.79$) = **net +0.49$ ≥ min +0.30 ✓ · KPI C7-PASS (70′ đầu sau restart, trước ROL)**. replay dự báo ~0.75 cặp/ngày ✓ | exit_log reason=`CROSS%` + log |
+| Open positions | **0** @10:50:39 (sau cặp C7; slot sạch) | status.json |
 
 ### 3.2 Bảng cluster (chase-event = entry cách anchor-live > 1.0pts)
 | Cluster | M0 (speed) | Entries | Chase-events | Kết quả | **Net** |
@@ -66,88 +74,113 @@
 - Kết quả 6 chase-events: **4/6 TP dương (+$17.01 gross TPs), 2/6 rổ net âm (−2.93 · −3.27@10:30 nếu tính ind)**. Snapshot 1 ngày = **chase dương ròng** → §3.5.
 
 ### 3.5 KẾT LUẬN BASELINE (LUẬT 9 — metric trước khi tối ưu)
-> C8 **KHÔNG** đo bằng "so với hôm nay" (hôm nay dương) mà bằng 3 thước: **(i) net tail của rổ chase (−2.93/−3.27/−4.21..−4.60 churn) giảm tần suất, (ii) replay 12d counterfactual, (iii) 3–5 phiên live kế tiếp**. Baseline đã chốt: 6 chase-events/ngày · worst-cluster-net −4.60 · worst-ind −29.00 (case D, ngoài phạm vi C8).
+> C8 **KHÔNG** đo bằng "so với hôm nay" (hôm nay dương) mà bằng 3 thước: **(i) net tail của rổ chase (−2.93/−3.27/−4.21..−4.60 churn) giảm tần suất, (ii) replay 12d counterfactual (→ 11:0x: CHỈ MÀU SOI, không phải gate — HUMAN bỏ replay + pin), (iii) 3–5 phiên live kế tiếp (gate KPI §6)**. Baseline đã chốt: 6 chase-events/ngày · worst-cluster-net −4.60 · worst-ind −29.00 (case D — **11:0x: ĐÃ CHUYỂN VÀO PHẠM VI C8 qua G5**, retract §2.4 bản gốc).
 
 ---
 
 ## §4 OPTIONS (LUẬT 1 — Minimal + trade-off bằng số)
-**1 hook duy nhất cho mọi option**: `_can_open_new_root(side, open_pos)` tại `scalp_strategy.py:665` (gate M3 đã cô lập 6 sites §1-B1) + 1 key config mới.
-**Chứng minh minimality (Luật 1, câu hỏi "≤15 dòng thuần?")**: O2 = 1 key config + ~5 dòng trong hàm (so sánh px với min/max entry của NAKED cùng chiều CÒN MỞ khi `m0_regime=="IMPULSE"`) = **10 dòng, 0 dependency, 0 state mới** ✓. Không cần thư viện (bất kỳ thư viện) nào — qua test Luật 1.
+**1 hook duy nhất cho mọi option**: `_can_open_new_root(side, open_pos)` tại `scalp_strategy.py:665` (gate M3 đã cô lập 6 sites §1-B1) + 5 keys config mới.
+**Chứng minh minimality (Luật 1)**: C8-Unified = 5 config keys + ~14 dòng trong 1 hàm + 2 dòng tracking `last_hedge_leg_ts` = **không state machine mới, 0 dependency** ✓.
 
-| Option | Rule (chặn nếu) | Counterfactual hôm nay (6 events) | Rủi ro chính |
+> **Bảng counterfactual BẢN SƠ (đã BỎ — lỗi static-anchor)**: O1 "−6.16 · O2 −9.9 · O3 ~0" — bản gốc tính anchor từ entry đầu chùm như thể vẫn còn mở. **Thay bằng số verify §0.1 (per-second live-open, DB RO):**
+
+| Option | Rule | Counterfactual VERIFY (HUMAN-window 08:41:20→10:09:17, 36 root) | Rủi ro chính |
 |---|---|---|---|
-| **O1 window-3′ (spec HUMAN gốc)** | anchor = entry tốt nhất cùng chiều trong 3′; px−anchor > 1.0 | Chặn 4/6 — **lọt 2**: 4146.158 (cách 4′01″) & 4158.842 (4′01″) → **spec tự mâu thuẫn ví dụ chính nó** (cùng lỗi với 10:1x) | window 3′ < chu kỳ chase 4–5′ → chặn thiếu hệ thống |
-| **O2 live-anchor (đề xuất)** | anchor = entry tốt nhất NAKED **còn mở** cùng chiều (không time-window); M0==IMPULSE; L: px−min(entries-L-live) > `MAX_IMPULSE_SPAN_PTS` 1.0 → chặn · S đối xứng: max(S-live)−px > 1.0 | Chặn **6/6** · đổi: giữ tail −2.93/−3.27 nhưng **mất TP +3.94/+3.07 (A) + TP cluster B (+$11.76)** → **−9.9$ today = CHẤP NHẬN NHƯ BẢO HIỂM** | phiên "runaway lời" (B) bị thiệt — TP volume ↓ |
-| **O3 hybrid only-when-red** | O2 + `net_cluster_chạy < 0` (realized exits + unrealized theo tick px của NAKED live cùng chiều) | A: xanh → không chặn (giữ +7.08 ✓) · B: xanh đến 4156.865 → chặn 4159.x nếu net đã âm → **~0$ today, giữ được TPs** | +3 dòng (tính net O(N)); trễ 1 tick so O2 |
-| **O4 monitor-only** | — | giữ +$17 net hôm nay; tail −29 ind vẫn hiện (net đã cap −3.27 ✓) | tiếp tục trả churn −4.2/−4.6 phiên adverse |
+| **O1 window-3′ (spec HUMAN gốc)** | anchor 3′ | chặn B_0919 nhưng chặn nhầm 3 TP (−6.16 theo HUMAN recalc; **không re-verify độc lập — không cần vì đã LOẠI**) | window cắt episode → chặn thiếu/lệch |
+| **O2 live-anchor (nguyên bản)** | max span NAKED-live > 1.0 → chặn | **chặn 1/1 rổ chase đỉnh (B_0919 −2.93) · TP-loss = $0 · Δ +$2.93** (7 lệnh thắng TP/EXIT trong cửa sổ đều qua gate: A1/A2/B1/B2/B3 = 0 live-L tại giây vào) | chỉ cứu "đuổi đỉnh >1.0", không cứu rổ dup/underwater/post-leg |
+| **O3 hybrid only-when-red** | O2 + net<0 | **DEAD CODE (verify §0.1-2): tại điểm G3 fire, NAKED-live bên dưới LUÔN dương → net<0 không đồng thời → O3 ⊆ O2, không giá trị độc lập → LOẠI** | — |
+| **O4 giữ nguyên (monitor-only)** | 0 dòng | giữ +$17 net chase; 9 rổ lỗ −2.5..−4.6 (SUM −22.25/7 rổ trong cửa sổ) vẫn trả | phiên adverse = churn tiếp |
+| **★ C8-UNIFIED = O2 + G1 + G2 + G4 + G5 (PHÊ DUYỆT)** | 4 hàng rào vật lý (§4.5) | **chặn 7/7 rổ lỗ, TP-loss = 0, Δ = +$22.25** (SUM −22.25 verify: B_0843_2 −2.51 · B_0844 −2.74 · B_0914 −3.07 · B_0919 −2.93 · B_0939 −3.51 · B_1000_2 −4.21 · B_1001 −3.27) · **extended-window (+10:09→nay): +1 rổ chặn (B_1034 −3.35, G4) · 1 winner bị chặn (10:30:36, +3.01, G4) → Δ full-day ≈ +$22.59** | G4 chặn lệnh "vào thấp dưới root-đang-kéo-sâu" = có thể chặn 1 vài TP lẻ trong whipsaw (by-design trade-off, KPI follow-up) |
 
-### 4.4 Limitation (LUẬT 3 — ghi thẳng, không che)
-- **Case D (10:30, ind −29.00) KHÔNG bị C8 chặn** (span cluster CREEP 0.73 < 1.0 → mọi threshold ≥1.0 đều vô hiệu). Tail "solo cluster-top bị reversal" là **bệnh khác (C9, chưa chỉ định)**; net vẫn cap −6.48 → giữ observe-only.
-- C8 = **giảm tần suất rổ chase** (B5), không phải triệt tiêu tail (B3 bất diệt).
-- 10:30:43 HEDGE_TAKE_PAIR fire vì leg +1.5pts & M0≠IMPULSE (wall semantics) — hành vi đúng spec P2-H, không phải lỗi.
+### 4.5 C8-UNIFIED SPEC (4 hàng rào + 5 config keys) — verify trên dữ liệu thật 15/10
+| Gate | Điều kiện chặn (cùng chiều, root mới @px, side s=±1) | Nguồn dữ liệu | Cứu được (15/10) |
+|---|---|---|---|
+| **G1 FWD_STEP** | `0 < Δ_near < 0.35` (Δ_near = px−entry của root cùng chiều GẦN NHẤT đang mở, ký hiệu theo s) | open_roots (M1 data, không cần state mới) | B_0914 (+0.287, −3.07) — sửa lỗ hổng "quên 0.35 sau 5s" của M3 (M3 chỉ chặn <0.35 trong-tick) |
+| **G2 DUP_PULLBACK** | `−0.25 < Δ_near ≤ 0` (vào trùng giá/pullback quá sát) | như G1 | B_0843_2 (−0.191, −2.51) · B_0939 (−0.003, −3.51) · **giữ 100% pullback-thắng ≥ −0.25 (09:57:10 −0.261 · 09:14:26 −0.298 · 09:38:10 −0.505)** |
+| **G3 O2_SPAN** | `max(Δ_naked) > 1.00` (Δ với MỖI root NAKED cùng chiều đang mở) | open_roots + NAKED = root chưa có leg-open | B_0919 (+1.418, −2.93; ind −10.74) — đúng "mua đuổi đỉnh" Red Team |
+| **G4 PRE_HEDGE / UNDERWATER** | `Δ_near < −0.90` (root gần nhất đã âm sâu, cách vạch khóa −1.2 chỉ 0.3) | open_roots | B_1000_2 (−0.969, −4.21) · B_1034 (−11.74 extended, −3.35) · **giữ lệnh −0.867 (TP +3.39)** |
+| **G5 POST_LEG_30S** | `0 < now − last_hedge_leg_ts ≤ 30s` (vừa mở chân HEDGE ≤30s → đóng băng root mới) | 1 biến tracking (2 dòng: set khi leg open) | B_1001 (13s, net −3.27 · **xóa ind −29.00**) · B_0844 (25s, −2.74) |
+
+**Config (append-only, `src/config.py`)**: `C8_ENABLE=True` · `MAX_IMPULSE_SPAN_PTS=1.00` (⅔×TP) · `MIN_PULLBACK_STEP_PTS=0.25` · `MAX_ADVERSE_STACK_PTS=0.90` · `POST_HEDGE_COOLDOWN_SEC=30.0` — **1 flag revert toàn bộ = `C8_ENABLE=False` (1 dòng, không cần redeploy lần 2)**.
+**Phạm vi**: áp cho mọi root mới cùng chiều (KHÔNG filter M0 — verify cho thấy chặn đúng cả rổ CREEP 10:00/10:25; giữ filter IMPULSE-only = bỏ G4/G5 mất 5/7 rổ). Log 1 dòng `[GATE] C8_SKIP reason=G?` khi chặn.
+
+### 4.4 Limitation (LUẬT 3 — còn gì C8 KHÔNG cứu)
+- Rổ "solo cluster-top bị reversal" khi không có root cùng chiều đang mở (vd top-1 của 10:00 cluster) = G4 chỉ chặn khi root gần nhất < −0.90 → tail ind (−14.5pts) vẫn có thể hiện nhưng **net luôn cap PSL −6.48 / HEDGE_TAKE net −3.27** (by P2-H design). C8 = giảm TẦN SUẤT rổ, không phải triệt tail (B3 bất diệt §2).
+- Conflict-check C7: C7 guard `M0∈{RANGE,CREEP}` + đóng lệnh · C8 chặn lệnh mới — 2 nhánh độc lập; pair C7 10:50:39 (mở 10:48:42/10:49:05) **cả 2 entry qua C8 (flags rỗng)** ✓ không collision.
 
 ---
 
-## §5 SANITY CHECK THIẾT KẾ (LUẬT 8 — chạy ĐẦU CYCLE, không chạy ở L1)
-### 5.1 REPL tĩnh (10s, deterministic, output kiểm tay được)
-```python
-# SANITY CHECK: 6 chase-events × 3 options — bảng chặn
-events = [(A,4146.158),(A,4146.594),(A,4147.576),(B,4156.865),(B,4159.103),(B,4158.842)]
-anchors = {A: 4144.630, B: 4152.647}
-# kỳ vọng: O1 block=4 (lọt 2) · O2 block=6 · O3 block=0-2 (tuỳ net lúc tick)
+## §5 SANITY CHECK THIẾT KẾ (LUẬT 8 — ✅ đã CHẠY + VERIFY trong §0.1, không phải thiết kế chưa chạy)
+### 5.1 REPL per-second live-open (ĐÃ CHẠY — kết quả in §0.1, bảng A1..B3)
+Kỳ vọng đã khớp: O2 chặn đúng 1/6 (A3 +1.418) · TP-loss 0 · B_1001 chỉ bị G5 chặn (13s sau leg).
+### 5.2 REPLAY 12d — **KHÔNG CÒN LÀ GATE** (HUMAN directive 11:0x: bỏ replay + không ép giữ pin 565; giữ file `_replay_hedge.py` như reference đọc, không block merge)
+Baseline tham chiếu (đã biết): B hiện tại = +3780.83/12d · worst −6.96 (tick-overshoot, D2-override). C8 chỉ chặn entry → volume giảm → delta replay chỉ là SOI, không phải điều kiện duyệt.
+### 5.3 Unit test `test_c8.py` (GATE THẬT — chạy trong worktree)
+8 cases: (1) G3: span NAKED-live >1.0 chặn (repro A3) · (2) span ≤1.0 cho qua (repro A2 +0.436) · (3) S đối xứng · (4) G1: 0<Δ<0.35 chặn (repro B_0914) · (5) G2: |Δ|≤0.25 pullback chặn (repro B_0939 −0.003) mà Δ≤−0.25 cho qua (repro 09:57:10 −0.261) · (6) G4: Δ<−0.90 chặn (repro B_1000_2) mà −0.90≥Δ≥−0.25 cho qua (09:27:28 −0.867) · (7) G5: 13s/25s sau leg chặn, 31s+ cho qua · (8) `C8_ENABLE=False` → toàn bộ pass (parity 100% như C5-G2, pin giữ nguyên khi off).
+
+---
+
+## §6 TEST GATES & ACCEPTANCE KPI (cycle C8) — CẬP NHẬT 11:0x theo HUMAN directive
+**Gate thực thi (CHẠY trong worktree `s4-hedge`, không đụng runtime gốc):**
+- `py_compile` 3 files (config/scalp_strategy/scalp_executor) · **`test_c8.py` 8/8 (§5.3)** = GATE THẬT.
+- `test_m1` 10/10 · `test_m3` 6/6 · `test_s2` 9/9 giữ (C8 chỉ chặn entry — exit-set không đổi, đã verify).
+- **`test_offline` pin: KHÔNG ÉP GIỮ 565** (HUMAN directive) — C8 chặn entry → volume offline thay đổi là **dự kiến**; ghi pin MỚI vào STATE làm reference (soi xu hướng, không block merge).
+- `_replay_hedge.py` 12d: **chạy như reference đọc** (soi delta PnL/worst-cluster), **KHÔNG phải điều kiện duyệt** (bản gốc §5.2 đã xóa gate này).
+- Verifier sub-agent sau S3 (AGENTS.md L2+ rule).
+
+**KPI live 24h sau deploy (accept/pass-fail):**
+(i) **G3-chase = 0**: entry cùng chiều có max-span so NAKED-live > 1.0pt (mọi M0) · (ii) cluster-rổ-âm (net cặp ≤ −2.48) giảm tần suất vs baseline 7/7 ngày 15/10 · (iii) TP/day Δ vs baseline ngày **≥ −20%** (vượt → nâng `MAX_IMPULSE_SPAN_PTS` 1.0→1.25, hoặc G4 −0.90→−1.05; fail nặng → revert 1 dòng `C8_ENABLE=False`) · (iv) burst cùng-tick = 0 (M3 không bị ảnh hưởng) · (v) **C7 CROSS_RESCUE vẫn fire** (đã fire cặp đầu 10:50:39 net +0.49$; C8 pair-10:48/49 flags rỗng ✓ không collision) · (vi) **G5 cooldown không nuốt lệnh hợp lệ**: đếm entry bị chặn reason=G5 + pnl của các lệnh lẽ ra sẽ mở (follow-up, không block).
+
+**Conflict-check C7 (đính chính 11:0x)**: C7 guard `M0∈{RANGE,CREEP}` (đóng cặp) · C8 gate mọi root mới (mở) — 2 nhánh độc lập **và đã verify bằng data thật** (pair C7 10:48/49 không bị C8 chặn) ✓.
+
+**Parameter (5 keys, §4.5)**: `C8_ENABLE=True` · `MAX_IMPULSE_SPAN_PTS=1.00` (⅔×TP=1.5; HUMAN chốt) · `MIN_PULLBACK_STEP_PTS=0.25` · `MAX_ADVERSE_STACK_PTS=0.90` · `POST_HEDGE_COOLDOWN_SEC=30.0` — **1 flag revert toàn bộ = `C8_ENABLE=False`**.
+
+---
+
+## §7 QUY TRÌNH THỰC THI (LUẬT 6 — mỗi step: 1 ACT + 1 OBSERVE; 3-strike; bot 97539 KHÔNG đụng trước ROL)
 ```
-→ Kết luận dự kiến: O2 là option duy nhất chặn đủ ví dụ HUMAN (4146.158) → O1 loại trừ ngay.
-### 5.2 Replay 12d counterfactual (3 thể, `_replay_hedge.py` đọc DB RO)
-Baseline B = **+3780.83** (9 cặp rescue, UNWOUND 0, worst −6.96) · chạy B+O2 · B+O3.
-**Acceptance (LUẬT 9)**: `PnL(B+O?) ≥ PnL(B) × 0.99` **VÀ** `worst-cluster-net giảm ≥ 50% (−4.60 → ≤ −2.3)` **VÀ** `TP-count Δ ≥ −20%`. Fail 1 tiêu chí → không deploy, về O4.
-### 5.3 Unit test `test_c8.py` (6 cases): (1) IMPULSE-up span>1.0 chặn L · (2) S đối xứng chặn · (3) RANGE/CREEP KHÔNG chặn (engine giữ nguyên) · (4) span ≤1.0 cho qua · (5) 1 NAKED live cùng chiều = anchor nó · (6) pullback (px về ≤1.0) cho vào lại.
-
----
-
-## §6 TEST GATES & ACCEPTANCE KPI (cycle C8)
-- `py_compile` 3 files · **test_offline pin: SẼ THAY ĐỔI** (C8 chặn entry → pin ON 565 giảm) — quy tắc Luật 1: **không ép giữ 565**, ghi sổ pin mới + replay A/B làm baseline · `test_m1` 10/10 giữ · `test_m3` 6/6 giữ · `test_s2` 9/9 giữ · exit-set test_offline **KHÔNG đổi** (chặn-entry không sinh exit row — đã verify: không có reason mới).
-- **KPI live 24h sau deploy (accept/pass-fail)**: (i) chase-events (M0=IMPULSE, >1.0pt vs live-anchor) = **0** · (ii) cluster-IMPULSE net ≥ 0 · (iii) TP/day Δ vs pin-cũ **≥ −20%** (vượt → nâng `MAX_IMPULSE_SPAN_PTS` 1.0→1.25 hoặc chuyển O3) · (iv) burst cùng-tick = 0 (M3 không bị ảnh hưởng) · (v) C7 CROSS_RESCUE vẫn fire bình thường (không conflict: C7 đóng lệnh, C8 chặn lệnh — 2 nhánh độc lập, guard 1 cặp/tick giữ).
-- **Parameter**: `MAX_IMPULSE_SPAN_PTS = 1.00` (Luật 0: = ⅔ × TP_POINTS 1.5 — chặn khi sóng đã chạy ⅔ biên độ lãi mục tiêu, còn ⅓ buffer cho slippage+spread; HUMAN chốt 1.00 trong Red Team) · `C8_ENABLE` flag = **1 dòng revert** (rollback an toàn không cần redeploy lần 2 nếu KPI iii fail nặng).
-- Conflict-check với C7: C7 guard `M0∈{RANGE,CREEP}` · C8 chỉ `M0==IMPULSE` → **0 giao tập** (mutually exclusive regimes) ✓.
-
----
-
-## §7 QUY TRÌNH THỰC THI (LUẬT 6 — mỗi step: 1 ACT + 1 OBSERVE; 3-strike; KHÔNG đụng bot hôm nay)
-```
-PRE-GATE (HUMAN): chọn O2/O3/O4 + xác nhận restart-window (open=0 hoặc ROL 21:45Z)
-S1 [ACT] chạy §5.1 REPL      [OBS] bảng 6-event khớp dự đoán (O1=4 · O2=6)
-S2 [ACT] code C8 worktree s4-hedge (~10 dòng + 1 config + test_c8) [OBS] py_compile + 6/6
-S3 [ACT] replay 12d ×3 thể   [OBS] bảng PnL/worst-cluster/TP-count
-S4 [ACT] pin mới + m1/m3/s2  [OBS] gate green → commit + push s4-hedge (CHƯA merge)
-S5 [HUMAN approve] ff-merge main + restart 1 LẦN (open=0)          [OBS] boot: M2 restore + SPAN_CAP log line
-S6 [OBSERVE 24h] KPI §6      [REFLECT] keep / nâng threshold / revert (1 dòng flag)
+PRE-GATE (HUMAN 11:0x): ✅ PHÊ DUYỆT C8-Unified + restart-window = ROL 21:45Z hoặc khi open=0
+S1 [ĐÃ XONG 11:0x] REPL per-second (§0.1) [OBS] 3/3 claim verify: O2 chặn 1/6 (A3) · 0 TP-loss · G5 chặn Case D
+S2 [ACT] code C8-Unified trong worktree s4-hedge: 5 config keys + ~14 dòng @ _can_open_new_root (L665)
+        + 2 dòng tracking last_hedge_leg_ts + log [GATE] C8_SKIP + test_c8.py (8 cases §5.3)
+   [OBS] py_compile pass + test_c8 8/8 + test_m1/m3/s2 giữ
+S3 [ACT] gate-green: run _replay_hedge.py CHỈ reference (không block) · ghi pin MỚI reference (không ép 565)
+   [OBS] bảng reference + verifier sub-agent PASS → commit s4-hedge (CHƯA merge) → STATE entry
+S4 [HUMAN final GO tại ROL 21:45Z HOẶC khi open=0] ff-merge main + restart 1 LẦN (canonical boot)
+   [OBS] boot: M2 restore day$ + log C8 active (1 dòng [GATE] C8_ON) + PID mới + zombie-check
+S5 [OBSERVE đến ROL/phiên kế] KPI §6 (i..vi)   [REFLECT] keep / chỉnh 1 param / revert 1 dòng
 ```
 - **Anti-loop (quy tắc 3-strike)**: mỗi step fail 3 lần → dừng + báo HUMAN (không tự đổi hướng).
-- **Zero-downtime**: đúng 1 merge + 1 restart (chuẩn boot: `SSL_CERT_FILE=$PWD/.venv/lib/python3.12/site-packages/certifi/cacert.pem nohup .venv/bin/python main.py >> "logs/$(date -u +%F)_scalp5.out" 2>&1 &`).
-- Verifier sub-agent sau S2 (theo AGENTS.md L2+ rule) trước khi S5.
+- **Zero-downtime**: đúng 1 merge + 1 restart (chuẩn boot: `cd XAU_SCALP5 && SSL_CERT_FILE=$PWD/.venv/lib/python3.12/site-packages/certifi/cacert.pem nohup .venv/bin/python main.py >> "logs/$(date -u +%F)_scalp5.out" 2>&1 &`).
+- Verifier sub-agent sau S3 (theo AGENTS.md L2+ rule) trước khi S4.
+- **S2/S3 chạy NAY trong worktree (HUMAN directive 11:0x)** — worktree tách biệt, merge/restart CHỈ tại S4 (ROL 21:45Z = 04:45+07 ngày 16/10, hoặc HUMAN gọi khi open=0).
 
 ---
 
 ## §8 PEDAGOGICAL (LUẬT 10)
-> **Analogy — "chặn xe bus ở bến"**: sóng IMPULSE = xe bus 5 bến. Bến 1–3 (chân sóng) xe đi chậm: lên dễ, vé rẻ, còn ghế (3 lệnh đầu cluster A/B = TP +$3 mỗi lệnh). Bến 4–5 (đỉnh sóng) xe đã nổ máy: mua vé giá cao, vừa lên là xe "nhuộm" (reversal) → bị trượt (leg −5.13, root ind −10.74/−29.00). **Nhưng số liệu 15/10 sáng: xe hôm nay chạy xuyên bến 4–5 mà LỜI** (cluster A +7.08 · B +3.05) — nên luật "cấm lên bến cuối" (O2) chỉ hợp lệ khi **12 phiên replay chứng minh bến 4–5 thua ròng** (tail net), chứ không phải vì hình hài. O3 = "chỉ cấm lên bến cuối **khi xe đã chạy sai hướng** (cluster âm)" — bản linh hoạt. O1 (sổ 3 phút) = "nhìn lại 3 phút trước để quyết" — **đã bị 15/10 chứng minh lỗi** (chase chu kỳ 4–5 phút, sổ 3 phút nhìn không thấy bến 1).
+> **Analogy — "chặn xe bus ở bến"** (đính chính 11:0x theo live-anchor): sóng IMPULSE = xe bus 5 bến. Bến 1–3 (chân sóng) lên xe giá rẻ, còn ghế (TP +$3/lệnh). Bến 4–5 (đỉnh) mua vé giá cao, vừa lên xe "nhuộm" (reversal) → trượt (leg −5.13, root ind −10.74/−29.00). **Lỗi bản gốc: tính "giá vé bến 1" như thể vẫn còn bán khi xe đã chạy tới bến 4 (static anchor) → oan cho O2 (−9.9$)**. Tính đúng "ai đang ngồi trên xe lúc đó" (live-anchor): bến 1–3 đã đóng TP từ lâu, chỉ còn lệnh đuổi đỉnh (A3 +1.418) là bị chặn → **O2 cứu +2.93, mất $0**. C8-Unified = O2 + 3 hàng rào phụ: (G1/G2) không đứng trùng chỗ người đang ngồi · (G4) không nhồi thêm khi chuyến trước đã chìm sâu (−0.90, sắp chốt −1.2) · (G5) sau khi có hành khách phải "cấp cứu" (mở leg HEDGE), 30s không bán vé chuyến mới — chặn đúng vụ −29.00 (10:01, 13s sau leg). Số thật 15/10: 7/7 rổ lỗ chặn, 0 TP bị oan · C7 (cứu rổ chéo) fire cặp đầu 10:50:39 (+0.49$) không đụng hàng rào C8.
 > **Công thức bất diệt** (first principles): `net_rổ_RECOVERY ≈ +$2.0 (root @+1.0pt) − $5 (leg @−2.5pt) ≈ −$3` — đây là **giá của slot-engine**, không phải bug; C8 chỉ **giảm số lần trả giá này**.
 
 ---
 
-## §9 DECISION MATRIX CHO HUMAN + MONITORING HÔM NAY (không code, bot 97539 giữ nguyên đến ROL 21:45Z)
-| Mục tiêu | Option | Today counterf. | Tail net | Độ phức tạp |
-|---|---|---|---|---|
-| Không xả TP xanh (data 15/10 ủng hộ: 4/6 chase TP) | **O3 hybrid** | ~0$ | giảm phần chặn được | ~13 dòng |
-| Bảo hiểm tail tối đa (chặn 6/6) | O2 live-anchor | −9.9$ | giảm ≥50% (mục tiêu) | ~10 dòng |
-| Chưa quyết, gather data | O4 monitor | +17$ | không đổi | 0 |
-**Quy tắc trigger (HUMAN 10:0x)**: chase lặp ≥1–2 lần → C8 vào cycle kế. **Đã trigger 1 (cluster B)** → nếu thêm ≥1 sự kiện chase-rổ-âm trước ROL → O2/O3 chắc; nếu không → replay 12d (§5.2) vote.
+## §9 DECISION MATRIX (CẬP NHẬT 11:0x — HUMAN ĐÃ CHỌN)
+| Mục tiêu | Option | Today counterf. (VERIFY §0.1) | Kết luận HUMAN |
+|---|---|---|---|
+| Chặn rổ lỗ max, giữ 100% TP thắng | **★ C8-Unified (O2+G1+G2+G4+G5)** | chặn 7/7 rổ (−22.25$), 0 TP-loss, Δ +$22.25 (HUMAN-window) · full-day +$22.59 | **PHÊ DUYỆT (11:0x)** — S2/S3 trong worktree ngay; S4 merge+restart tại ROL/open=0 |
+| Không xả TP (bảo thủ) | O3 hybrid | DEAD CODE (verify: O3 ⊆ O2; O2 đã 0 TP-loss → O3 không có giá trị độc lập) | LOẠI |
+| Spec gốc 3′ | O1 window | −6.16 (HUMAN recalc; chặn 3 TP nhầm) | LOẠI |
+| Fallback nếu KPI §6 fail | O4 monitor | giữ +17$ chase; churn −2.5..−4.6 tiếp | chỉ dùng khi C8 fail (revert 1 dòng) |
 
-**Monitoring hôm nay (theo lệnh HUMAN, chỉ đọc):**
+**Quy tắc trigger (HUMAN 10:0x)**: chase lặp ≥1–2 lần → C8. **ĐÃ TRIGGER (cluster B 09:54) + HUMAN PHÊ DUYỆT 11:0x → C8-Unified CHẮC**, không cần vote replay.
+
+**Deploy window (chốt)**: giữ PID 97539 đến **ROL 21:45Z (04:45+07 ngày 16/10)**; code+test ready trong `s4-hedge` trước đó; HUMAN có thể gọi S4 sớm khi **open=0** (lệnh của HUMAN). Merge = ff-merge main 1 lần + restart 1 lần canonical boot + zombie-check.
+
+**Monitoring hôm nay (chỉ đọc, KPI §6):**
 ```bash
 cd /Users/admin/Desktop/DESIGN/XAU_SCALP5
 tail -f logs/2026-10-15_scalp5.log | grep -E "ENTER|EXIT|CROSS_RESCUE|PRUNE|HEDGE|HB"
 ```
-Đếm 3 KPI: (1) **chase-event mới** = entry cùng chiều cách live-anchor >1.0pt trong M0=IMPULSE (regime log 1′) · (2) **chase-rổ-âm** = exit pair net ≤ −2.48 có leg mở trong 60s sau chase-event · (3) **C7 rescues** (hy vọng ≥1 khi M0 về RANGE/CREEP chiều — sáng 0 do M0 đa số IMPULSE).
+Đếm: (1) **chase-event G3** = entry cùng chiều max-span > 1.0 vs NAKED-live (mọi M0) · (2) **chase-rổ-âm** = exit pair net ≤ −2.48 · (3) **C7 rescues** — **ĐÃ ĐẠT 1/1 (10:50:39, net +0.49$ ✓)** · (4) rổ RECOVERY churn (baseline −3.3..−4.6: 10:13 −2.74 · 10:34 −3.35) · (5) X1 ghost = 0. Snapshot 11:0x: day$ ≈ +111 (115+ exits) · open 0 @10:50:39.
 
 ---
-*File = PLAN CHỈ (AGENTS.md L1 report-only). Mọi code trong worktree `s4-hedge` sau S2 §7; bot runtime gốc & data (PID 97539) KHÔNG chạm. Chờ HUMAN: chọn O2/O3/O4 (§9).*
+*File = PLAN + SPEC C8-Unified (AGENTS.md: code chỉ trong worktree `s4-hedge` theo S2/S3; bot runtime gốc & data (PID 97539) KHÔNG CHẠM đến S4). HUMAN 11:0x đã PHÊ DUYỆT C8-Unified → trạng thái: CHỜ S4 (ROL 21:45Z hoặc lệnh open=0).*
