@@ -325,6 +325,21 @@ async def run() -> None:
         await asyncio.wait_for(boot_exit_log_sync(client), timeout=300.0)  # S2: backfill exit_log (không crash nếu RPC fail)
     except Exception as e:
         log.warning(f"[BOOT] boot_exit_log_sync timeout/fail ({type(e).__name__}) → backfill skip (re-sync khi RPC recover)")
+    # M2 (P2-H, HUMAN-approved 15/10): restore day$ từ exit_log (ngày UTC hiện tại) — counter RAM
+    # reset 0.0 mỗi lần restart pipeline (StreamStalled backoff / process) → fuse DAILY_LOSS_STOP
+    # ($30) bị vô hiệu sau nhiều lần cloud-flap (evidence: 01:40/02:50/05:01 day$ +3.72→0.00).
+    # Read-only; boundary = đầu ngày UTC (khớp rollover ordinal của note_closed). Fail → giữ 0.0.
+    try:
+        _day_start = int(datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
+        async with aiosqlite.connect(DB_PATH) as db:
+            _cur = await db.execute(
+                "SELECT COALESCE(SUM(pnl), 0.0), COUNT(*) FROM exit_log WHERE ts >= ?", (_day_start,))
+            _s, _n = await _cur.fetchone()
+        executor.day_utc = datetime.now(timezone.utc).toordinal()
+        executor.day_loss = float(_s or 0.0)
+        log.info(f"[BOOT] day$ restored {executor.day_loss:+.2f} ({_n} exits, UTC-day ≥ {_day_start})")
+    except Exception as e:
+        log.warning(f"[BOOT] day$ restore fail ({type(e).__name__}) → giữ 0.0 (fuse reset như cũ)")
     if executor.at_daily_cap:
         executor.halted = True
 
