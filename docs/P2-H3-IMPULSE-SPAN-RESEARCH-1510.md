@@ -102,7 +102,8 @@
 | **G5 POST_LEG_30S** | `0 < now − last_hedge_leg_ts ≤ 30s` (vừa mở chân HEDGE ≤30s → đóng băng root mới) | 1 biến tracking (2 dòng: set khi leg open) | B_1001 (13s, net −3.27 · **xóa ind −29.00**) · B_0844 (25s, −2.74) |
 
 **Config (append-only, `src/config.py`)**: `C8_ENABLE=True` · `MAX_IMPULSE_SPAN_PTS=1.00` (⅔×TP) · `MIN_PULLBACK_STEP_PTS=0.25` · `MAX_ADVERSE_STACK_PTS=0.90` · `POST_HEDGE_COOLDOWN_SEC=30.0` — **1 flag revert toàn bộ = `C8_ENABLE=False` (1 dòng, không cần redeploy lần 2)**.
-**Phạm vi**: áp cho mọi root mới cùng chiều (KHÔNG filter M0 — verify cho thấy chặn đúng cả rổ CREEP 10:00/10:25; giữ filter IMPULSE-only = bỏ G4/G5 mất 5/7 rổ). Log 1 dòng `[GATE] C8_SKIP reason=G?` khi chặn.
+**Phạm vi**: áp cho mọi root mới cùng chiều (KHÔNG filter M0 — verify cho thấy chặn đúng cả rổ CREEP 10:00/10:25; giữ filter IMPULSE-only = bỏ G4/G5 mất 5/7 rổ). Log 1 dòng `[GATE] C8_SKIP reason=G?` khi chặn (throttle 10s/thay-reason — 6 call-sites × tick).
+**Composite M3 (ghi nhận 11:2x, verifier note)**: M3-existing `abs(last_px−entry) < 0.35` (2 chiều) chạy TRƯỚC C8 → preempt band G1/G2 tại px-quyết-định → G1/G2 = belt-and-suspenders cho case px-lệch limit-fill/cross-tick (chính là lỗ hổng M3) · pullback-thắng vùng −0.25…−0.35 có thể bị M3 chặn → đo qua KPI iii (§6), không phải bug C8.
 
 ### 4.4 Limitation (LUẬT 3 — còn gì C8 KHÔNG cứu)
 - Rổ "solo cluster-top bị reversal" khi không có root cùng chiều đang mở (vd top-1 của 10:00 cluster) = G4 chỉ chặn khi root gần nhất < −0.90 → tail ind (−14.5pts) vẫn có thể hiện nhưng **net luôn cap PSL −6.48 / HEDGE_TAKE net −3.27** (by P2-H design). C8 = giảm TẦN SUẤT rổ, không phải triệt tail (B3 bất diệt §2).
