@@ -21,9 +21,12 @@ MODE "MOM1" (CHAIRMAN 13-10 18:xx): GIÁ LÊN MUA LÊN · GIÁ XUỐNG BÁN XU�
   spread 0.24pts/lượt đã audit trong replay (data: net5 persistence ≈ 0 → chọn TIME stop bằng số)
 """
 import json
+import logging
 import time
 from dataclasses import dataclass
 from typing import Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 # S3-B V2: LVL M1 ladder + G2-LVL/EXT15 (spec §14) — engine global (rebuild boot + on_m1_close ở main)
 try:
@@ -89,6 +92,10 @@ class ScalpStrategy:
         # — shadow state persistence cho metadata position (main re-attach sau adopt() StreamStalled restart)
         self.hedge_baskets: Dict[str, dict] = {}
         self._tick_fills: List[tuple] = []      # P2-H M3: root fills TRONG tick (side, px) — gate in-tick, reset mỗi decide()
+        # P2-H3 C8-Unified (15/10 11:0x HUMAN): G5 = tracking lúc mở chân HEDGE (set trong _manage_hedge_basket)
+        self.last_hedge_leg_ts: float = 0.0     # 0 → dt_leg = now (lớn) → G5 không fire sau restart (đúng: không "vừa" mở leg)
+        self._c8_last_log: int = 0              # log-throttle: [GATE] C8_SKIP tối đa 1 dòng/10s (6 call-sites × tick = spam nếu không throttle)
+        self._c8_last_reason: str = ""
         # TF S-ladder: "M5" (gốc) | "M1" (CHAIRMAN 13-10 tối — scale 1/5, xem S1_* config)
         self.ladder_tf: str = getattr(cfg, "LADDER_TF", "M5")
         if self.ladder_tf == "M1":
@@ -688,7 +695,40 @@ class ScalpStrategy:
                 return False
             if abs(self.last_px - r["entry"]) < step:
                 return False                    # chặn triệt để lỗi 2 lệnh cách 0.01–0.35pts
+        # ── P2-H3 C8-Unified Live Gate (15/10 11:0x HUMAN-approved · docs/P2-H3 §4.5) ──
+        # 5 gates vật lý trên VỊ THẾ ĐANG MỞ (mọi M0, cả NAKED/LOCKED cho G1/G2/G4; NAKED-only cho G3).
+        # M3 ở trên giữ nguyên (in-tick burst); C8 chặn các case cross-tick/limit-fill M3 không bắt.
+        if getattr(c, "C8_ENABLE", False) and self.last_px is not None:
+            dt_leg = self.now_ts - self.last_hedge_leg_ts
+            if 0 < dt_leg <= getattr(c, "POST_HEDGE_COOLDOWN_SEC", 30.0):
+                return self._c8_block("G5_POSTLEG", -dt_leg)          # G5: vừa mở chân HEDGE ≤30s (whipsaw 2 đầu)
+            same = [r for r in roots if r.get("side") == side]
+            if same:
+                sgn = 1 if side == "L" else -1
+                near = min(same, key=lambda r: abs(self.last_px - r["entry"]))
+                d_near = (self.last_px - near["entry"]) * sgn         # Δ ký hiệu: thuận = chasing · âm = underwater
+                pb = getattr(c, "MIN_PULLBACK_STEP_PTS", 0.25)
+                adv = getattr(c, "MAX_ADVERSE_STACK_PTS", 0.90)
+                if 0 < d_near < step:
+                    return self._c8_block("G1_FWD", d_near)           # G1: forward step < 0.35 (mở rộng M3 cross-tick)
+                if -pb < d_near <= 0:
+                    return self._c8_block("G2_DUP", d_near)           # G2: pullback/trùng giá 0..−0.25 (giữ ≤ −0.25 = bắt nhịp lùi)
+                if d_near < -adv:
+                    return self._c8_block("G4_STACK", d_near)         # G4: nhồi khi root gần nhất đã âm < −0.90 (sắp lock −1.2)
+                leg_root_ids = {q.get("parent_id") for q in open_pos if q.get("parent_id")}
+                naked = [r for r in same if r.get("id") not in leg_root_ids]   # NAKED = chưa có chân HEDGE mở
+                if naked:
+                    mx = max((self.last_px - r["entry"]) * sgn for r in naked)
+                    if mx > getattr(c, "MAX_IMPULSE_SPAN_PTS", 1.00):
+                        return self._c8_block("G3_SPAN", mx)          # G3: O2 live-anchor — đuổi đỉnh > ⅔×TP của lệnh NAKED
         return True
+
+    def _c8_block(self, reason: str, d: float) -> bool:
+        """P2-H3 C8: log 1 dòng [GATE] C8_SKIP (throttle 10s/thay reason) → return False (chặn)."""
+        if reason != self._c8_last_reason or self.now_ts - self._c8_last_log >= 10:
+            logger.info("[GATE] C8_SKIP reason=%s d=%+.3f px=%.3f", reason, d, self.last_px)
+            self._c8_last_reason, self._c8_last_log = reason, self.now_ts
+        return False
 
     def _gate_root_pos(self, open_pos: list) -> list:
         """P2-H M3: open_pos + root fills ĐÃ XẢY RA TRONG TICK NÀY (chưa kịp vào broker open_pos).
@@ -798,6 +838,7 @@ class ScalpStrategy:
                     "level_ts": self.now_ts, "touch": 0, "drift5m": 0.0,
                     "parent_id": root_id, "leg_type": "HEDGE",
                 })
+                self.last_hedge_leg_ts = self.now_ts   # P2-H3 C8 G5: khóa 30s root mới (whipsaw sau leg)
             _emit()
             return acts
 
